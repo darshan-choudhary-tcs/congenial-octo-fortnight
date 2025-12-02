@@ -152,12 +152,19 @@ Answer:"""
             )
             end_time = datetime.utcnow()
 
-            # Calculate confidence score based on similarity scores
+            # Calculate base similarity score
             avg_similarity = sum(doc['similarity'] for doc in retrieved_docs) / len(retrieved_docs) if retrieved_docs else 0.0
-            confidence_score = min(0.95, avg_similarity)  # Cap at 0.95
 
             # Extract grounding evidence (source citations in response)
             grounding_evidence = self._extract_source_citations(response_text, sources)
+
+            # Calculate multi-factor confidence score
+            confidence_score = self._calculate_confidence_score(
+                avg_similarity=avg_similarity,
+                retrieved_docs=retrieved_docs,
+                grounding_evidence=grounding_evidence,
+                response_text=response_text
+            )
 
             result = {
                 'response': response_text,
@@ -200,6 +207,83 @@ Answer:"""
                 })
 
         return grounding_evidence
+
+    def _calculate_confidence_score(
+        self,
+        avg_similarity: float,
+        retrieved_docs: List[Dict[str, Any]],
+        grounding_evidence: List[Dict[str, Any]],
+        response_text: str
+    ) -> float:
+        """
+        Calculate multi-factor confidence score combining:
+        - Similarity scores (70%) - Primary signal from vector search quality
+        - Source citation quality (20%) - Whether sources were effectively used
+        - Response grounding indicators (10%) - Strong uncertainty detection
+
+        Args:
+            avg_similarity: Average similarity from vector search
+            retrieved_docs: Retrieved documents with metadata
+            grounding_evidence: Extracted source citations
+            response_text: Generated response text
+
+        Returns:
+            Confidence score between 0.0 and 1.0
+        """
+        # Factor 1: Similarity Score (70% weight) - Primary indicator of retrieval quality
+        # Already calibrated by the new vector store similarity calculation
+        similarity_score = avg_similarity
+
+        # Factor 2: Source Citation Quality (20% weight)
+        # How many sources were actually cited vs retrieved?
+        # More generous scoring: even 2-3 citations from 5 docs is good quality
+        if retrieved_docs:
+            citation_ratio = len(grounding_evidence) / len(retrieved_docs)
+            # Generous bonus for citing multiple sources
+            citation_diversity = min(0.3, len(grounding_evidence) * 0.08)
+            # Base score of 0.7 if any citations exist
+            base_citation = 0.7 if len(grounding_evidence) > 0 else 0.3
+            citation_score = min(1.0, base_citation + citation_ratio * 0.2 + citation_diversity)
+        else:
+            citation_score = 0.6  # Neutral-positive score if no docs retrieved
+
+        # Factor 3: Response Grounding Indicators (10% weight)
+        # Check for strong uncertainty indicators that should lower confidence
+        uncertainty_phrases = [
+            "i don't have enough information",
+            "the context doesn't contain",
+            "i cannot find",
+            "unable to determine",
+            "no information is provided"
+        ]
+        response_lower = response_text.lower()
+        uncertainty_penalty = sum(1 for phrase in uncertainty_phrases if phrase in response_lower)
+        # Only apply penalty for strong uncertainty, be generous otherwise
+        grounding_score = max(0.5, 1.0 - (uncertainty_penalty * 0.25))
+
+        # Weighted combination (70% similarity + 20% citation + 10% grounding)
+        final_confidence = (
+            similarity_score * 0.70 +
+            citation_score * 0.20 +
+            grounding_score * 0.10
+        )
+
+        # Log detailed breakdown for debugging
+        logger.info(f"Confidence breakdown: similarity={similarity_score:.3f} (70%), citation={citation_score:.3f} (20%), grounding={grounding_score:.3f} (10%) → final={final_confidence:.3f}")
+        logger.info(f"  - Citations: {len(grounding_evidence)}/{len(retrieved_docs)} sources cited")
+        logger.info(f"  - Uncertainty penalties: {uncertainty_penalty}")
+
+        # Ensure score is between 0.0 and 1.0
+        final_confidence = max(0.0, min(1.0, final_confidence))
+
+        logger.debug(
+            f"Confidence breakdown - Similarity: {similarity_score:.3f} (50%), "
+            f"Citations: {citation_score:.3f} (30%), "
+            f"Grounding: {grounding_score:.3f} (20%), "
+            f"Final: {final_confidence:.3f}"
+        )
+
+        return final_confidence
 
     async def verify_grounding(
         self,

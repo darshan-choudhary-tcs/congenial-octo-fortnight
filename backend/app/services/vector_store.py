@@ -6,6 +6,7 @@ import chromadb
 from chromadb.config import Settings
 from loguru import logger
 import uuid
+import math
 
 from app.config import settings
 from app.services.llm_service import llm_service
@@ -144,16 +145,10 @@ class VectorStoreService:
             formatted_results = []
             for i in range(len(results['ids'][0])):
                 distance = results['distances'][0][i]
-                # ChromaDB uses squared euclidean distance - normalize to 0-1 range
-                # Lower distance = higher similarity
-                # For practical purposes, distances < 1.0 are very similar
-                if distance < 0:
-                    similarity = 1.0  # Handle edge case
-                elif distance < 1.0:
-                    similarity = 1.0 - distance
-                else:
-                    # Use exponential decay for larger distances
-                    similarity = 1.0 / (1.0 + distance)
+                # ChromaDB uses squared euclidean distance
+                # For high-dimensional embeddings (768-1536 dim), we need calibrated normalization
+                # Typical distance ranges: 0-2 (very similar), 2-10 (relevant), 10-20 (less relevant), >20 (not relevant)
+                similarity = self._calculate_calibrated_similarity(distance)
 
                 formatted_results.append({
                     'id': results['ids'][0][i],
@@ -194,6 +189,47 @@ class VectorStoreService:
         except Exception as e:
             logger.error(f"Similarity search failed: {e}")
             raise
+
+    def _calculate_calibrated_similarity(self, distance: float) -> float:
+        """
+        Calculate calibrated similarity score from squared Euclidean distance.
+        Optimized for high-dimensional embeddings (768-1536 dimensions).
+
+        ChromaDB returns SQUARED Euclidean distances, resulting in larger values (200-500+).
+        Distance ranges and their typical meanings (based on observed data):
+        - 0.0 - 150.0:   Nearly identical / Very high similarity (0.85 - 1.0)
+        - 150.0 - 250.0: Highly relevant / High similarity (0.70 - 0.85)
+        - 250.0 - 350.0: Moderately relevant / Good similarity (0.55 - 0.70)
+        - 350.0 - 450.0: Somewhat relevant / Fair similarity (0.40 - 0.55)
+        - > 450.0:       Low relevance / Low similarity (0.0 - 0.40)
+
+        Args:
+            distance: Squared Euclidean distance from ChromaDB
+
+        Returns:
+            Similarity score between 0.0 and 1.0
+        """
+        if distance < 0:
+            return 1.0  # Handle edge case
+
+        # Piecewise linear mapping calibrated for SQUARED Euclidean distances (actual observed range: 200-500+)
+        # ChromaDB appears to return squared distances, not regular Euclidean
+        if distance <= 150.0:
+            # Very similar: map [0, 150] -> [1.0, 0.85]
+            return 1.0 - (distance / 150.0) * 0.15
+        elif distance <= 250.0:
+            # Highly relevant: map [150, 250] -> [0.85, 0.70]
+            return 0.85 - ((distance - 150.0) / 100.0) * 0.15
+        elif distance <= 350.0:
+            # Moderately relevant: map [250, 350] -> [0.70, 0.55]
+            return 0.70 - ((distance - 250.0) / 100.0) * 0.15
+        elif distance <= 450.0:
+            # Somewhat relevant: map [350, 450] -> [0.55, 0.40]
+            return 0.55 - ((distance - 350.0) / 100.0) * 0.15
+        else:
+            # Low relevance: exponential decay for distances > 450
+            # map [450, infinity] -> [0.40, 0.0]
+            return max(0.0, 0.40 * math.exp(-(distance - 450.0) / 200.0))
 
     async def get_document_by_id(
         self,

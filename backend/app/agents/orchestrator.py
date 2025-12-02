@@ -109,6 +109,13 @@ class AgentOrchestrator:
                     'timestamp': datetime.utcnow().isoformat()
                 })
 
+                # Enhance confidence with grounding score if available
+                if grounding_result and grounding_result.get('status') == 'completed':
+                    grounding_score = grounding_result.get('grounding_score', 0.0)
+                    # Blend grounding score with existing confidence (70% original, 30% grounding)
+                    confidence = confidence * 0.7 + grounding_score * 0.3
+                    logger.info(f"[Orchestrator] Enhanced confidence with grounding: {confidence:.3f}")
+
             # Step 4: Explainability Agent - Generate explanation
             explainability_agent = get_agent('explainability')
             explainability_result = await explainability_agent.execute(
