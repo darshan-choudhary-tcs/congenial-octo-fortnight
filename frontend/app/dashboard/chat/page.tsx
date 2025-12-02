@@ -14,7 +14,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
-import { MessageSquare, Send, Loader2, FileText, Brain, TrendingUp, CheckCircle, Upload, Home, Trash2 } from 'lucide-react'
+import { MessageSquare, Send, Loader2, FileText, Brain, TrendingUp, CheckCircle, Upload, Home, Trash2, Search, Zap, Shield, Lightbulb } from 'lucide-react'
 import { formatDate, getConfidenceColor, getConfidenceLabel } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import { useRouter } from 'next/navigation'
@@ -36,6 +36,22 @@ interface Conversation {
   message_count: number
 }
 
+interface AgentStatus {
+  agent: string
+  action: string
+  status: 'started' | 'completed' | 'failed'
+  message: string
+  timestamp: string
+  result?: any
+}
+
+interface StreamingState {
+  isStreaming: boolean
+  currentAgent: string | null
+  agentStatuses: AgentStatus[]
+  accumulatedResponse: string
+}
+
 export default function ChatPage() {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -49,8 +65,15 @@ export default function ChatPage() {
   const [provider, setProvider] = useState(user?.preferred_llm || 'ollama')
   const [includeGrounding, setIncludeGrounding] = useState(true)
   const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [streamingState, setStreamingState] = useState<StreamingState>({
+    isStreaming: false,
+    currentAgent: null,
+    agentStatuses: [],
+    accumulatedResponse: ''
+  })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     loadConversations()
@@ -98,8 +121,8 @@ export default function ChatPage() {
     }
   }
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || loading) return
+  const handleSendMessageStream = async () => {
+    if (!input.trim() || loading || streamingState.isStreaming) return
 
     const userMessage = input.trim()
     setInput('')
@@ -114,47 +137,178 @@ export default function ChatPage() {
     }
     setMessages((prev) => [...prev, tempUserMsg])
 
+    // Initialize streaming state
+    setStreamingState({
+      isStreaming: true,
+      currentAgent: null,
+      agentStatuses: [],
+      accumulatedResponse: ''
+    })
+
+    // Create abort controller for cancellation
+    abortControllerRef.current = new AbortController()
+
     try {
-      const response = await chatAPI.sendMessage({
-        message: userMessage,
-        conversation_id: currentConversation || undefined,
-        provider,
-        include_grounding: includeGrounding,
+      const token = localStorage.getItem('token')
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+      const response = await fetch(`${API_URL}/api/v1/chat/message/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          conversation_id: currentConversation || undefined,
+          provider,
+          include_grounding: includeGrounding,
+        }),
+        signal: abortControllerRef.current.signal,
       })
 
-      // Update conversation ID if new
-      if (!currentConversation) {
-        setCurrentConversation(response.data.conversation_id)
-        await loadConversations()
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      // Add assistant message
-      const assistantMsg: Message = {
-        id: response.data.message_id,
-        role: 'assistant',
-        content: response.data.response,
-        sources: response.data.sources,
-        confidence_score: response.data.confidence_score,
-        created_at: new Date().toISOString(),
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) {
+        throw new Error('No response body reader')
       }
 
-      setMessages((prev) => [...prev.filter((m) => m.id !== tempUserMsg.id), tempUserMsg, assistantMsg])
+      let buffer = ''
+      let finalResult: any = null
+      let conversationId: string | null = null
+      let messageId: string | null = null
 
-      toast({
-        title: 'Response Generated',
-        description: `Confidence: ${getConfidenceLabel(response.data.confidence_score)} (${(response.data.confidence_score * 100).toFixed(1)}%)`,
-      })
+      while (true) {
+        const { done, value } = await reader.read()
+
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+
+          if (line.startsWith('event:')) {
+            const eventType = line.substring(6).trim()
+            continue
+          }
+
+          if (line.startsWith('data:')) {
+            const data = line.substring(5).trim()
+
+            try {
+              const eventData = JSON.parse(data)
+
+              // Handle different event types
+              if (eventData.conversation_id) {
+                conversationId = eventData.conversation_id
+                if (!currentConversation) {
+                  setCurrentConversation(conversationId)
+                }
+              }
+
+              if (eventData.message_id) {
+                messageId = eventData.message_id
+              }
+
+              // Agent status events
+              if (eventData.agent && eventData.status) {
+                const agentStatus: AgentStatus = {
+                  agent: eventData.agent,
+                  action: eventData.action || '',
+                  status: eventData.status,
+                  message: eventData.message || '',
+                  timestamp: eventData.timestamp || new Date().toISOString(),
+                  result: eventData.result
+                }
+
+                setStreamingState(prev => ({
+                  ...prev,
+                  currentAgent: eventData.status === 'started' ? eventData.agent : null,
+                  agentStatuses: [...prev.agentStatuses, agentStatus]
+                }))
+              }
+
+              // Final complete event
+              if (eventData.response !== undefined) {
+                finalResult = eventData
+                setStreamingState(prev => ({
+                  ...prev,
+                  accumulatedResponse: eventData.response
+                }))
+              }
+
+              // Error event
+              if (eventData.error) {
+                throw new Error(eventData.error)
+              }
+
+            } catch (parseError) {
+              console.error('Error parsing SSE data:', parseError)
+            }
+          }
+        }
+      }
+
+      // Add assistant message with final result
+      if (finalResult) {
+        const assistantMsg: Message = {
+          id: messageId || `msg-${Date.now()}`,
+          role: 'assistant',
+          content: finalResult.response,
+          sources: finalResult.sources || [],
+          confidence_score: finalResult.confidence_score,
+          created_at: new Date().toISOString(),
+        }
+
+        setMessages((prev) => [...prev.filter((m) => m.id !== tempUserMsg.id), tempUserMsg, assistantMsg])
+
+        toast({
+          title: 'Response Generated',
+          description: `Confidence: ${getConfidenceLabel(finalResult.confidence_score)} (${(finalResult.confidence_score * 100).toFixed(1)}%)`,
+        })
+
+        // Reload conversations if new
+        if (conversationId && !currentConversation) {
+          await loadConversations()
+        }
+      }
+
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to send message',
-        variant: 'destructive',
-      })
+      if (error.name === 'AbortError') {
+        toast({
+          title: 'Cancelled',
+          description: 'Message sending was cancelled',
+        })
+      } else {
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to send message',
+          variant: 'destructive',
+        })
+      }
       setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id))
     } finally {
       setLoading(false)
+      setStreamingState({
+        isStreaming: false,
+        currentAgent: null,
+        agentStatuses: [],
+        accumulatedResponse: ''
+      })
+      abortControllerRef.current = null
     }
   }
+
+  const handleSendMessage = handleSendMessageStream
 
   const handleNewConversation = () => {
     setCurrentConversation(null)
@@ -413,7 +567,76 @@ export default function ChatPage() {
                           </div>
                         </div>
                       ))}
-                      {loading && (
+                      {streamingState.isStreaming && (
+                        <div className="flex justify-start">
+                          <div className="bg-muted rounded-lg p-4 max-w-[80%]">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                              <span className="text-sm font-semibold">Processing your request...</span>
+                            </div>
+
+                            <div className="space-y-2">
+                              {streamingState.agentStatuses.map((status, idx) => {
+                                const isActive = streamingState.currentAgent === status.agent
+                                const icons: Record<string, any> = {
+                                  'ResearchAgent': Search,
+                                  'RAGGenerator': Brain,
+                                  'GroundingAgent': Shield,
+                                  'ExplainabilityAgent': Lightbulb
+                                }
+                                const Icon = icons[status.agent] || Zap
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`flex items-start gap-2 text-xs p-2 rounded transition-all ${
+                                      isActive ? 'bg-primary/10 border border-primary' :
+                                      status.status === 'completed' ? 'bg-green-50 border border-green-200' :
+                                      status.status === 'failed' ? 'bg-red-50 border border-red-200' :
+                                      'bg-background border border-border'
+                                    }`}
+                                  >
+                                    {status.status === 'started' ? (
+                                      <Loader2 className="h-3 w-3 mt-0.5 animate-spin text-primary flex-shrink-0" />
+                                    ) : status.status === 'completed' ? (
+                                      <CheckCircle className="h-3 w-3 mt-0.5 text-green-600 flex-shrink-0" />
+                                    ) : (
+                                      <Icon className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium">{status.agent}</span>
+                                        {status.result && (
+                                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                                            {status.result.document_count !== undefined &&
+                                              `${status.result.document_count} docs`}
+                                            {status.result.confidence !== undefined &&
+                                              `${(status.result.confidence * 100).toFixed(0)}%`}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <p className="text-muted-foreground mt-0.5">{status.message}</p>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+
+                            {streamingState.accumulatedResponse && (
+                              <div className="mt-3 pt-3 border-t border-border">
+                                <p className="text-xs text-muted-foreground mb-2">Preview:</p>
+                                <div className="prose prose-sm max-w-none">
+                                  <ReactMarkdown>
+                                    {streamingState.accumulatedResponse.substring(0, 200) +
+                                    (streamingState.accumulatedResponse.length > 200 ? '...' : '')}
+                                  </ReactMarkdown>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {loading && !streamingState.isStreaming && (
                         <div className="flex justify-start">
                           <div className="bg-muted rounded-lg p-4 flex items-center gap-2">
                             <Loader2 className="h-4 w-4 animate-spin" />
