@@ -26,6 +26,7 @@ interface Message {
   content: string
   sources?: any[]
   confidence_score?: number
+  low_confidence_warning?: boolean
   created_at: string
 }
 
@@ -267,14 +268,18 @@ export default function ChatPage() {
           content: finalResult.response,
           sources: finalResult.sources || [],
           confidence_score: finalResult.confidence_score,
+          low_confidence_warning: finalResult.low_confidence_warning || false,
           created_at: new Date().toISOString(),
         }
 
         setMessages((prev) => [...prev.filter((m) => m.id !== tempUserMsg.id), tempUserMsg, assistantMsg])
 
         toast({
-          title: 'Response Generated',
-          description: `Confidence: ${getConfidenceLabel(finalResult.confidence_score)} (${(finalResult.confidence_score * 100).toFixed(1)}%)`,
+          title: finalResult.low_confidence_warning ? '⚠️ Low Confidence Response' : 'Response Generated',
+          description: finalResult.low_confidence_warning
+            ? `No relevant knowledge base content found (${(finalResult.confidence_score * 100).toFixed(1)}% confidence). Response is from AI without document context.`
+            : `Confidence: ${getConfidenceLabel(finalResult.confidence_score)} (${(finalResult.confidence_score * 100).toFixed(1)}%)`,
+          variant: finalResult.low_confidence_warning ? 'destructive' : 'default',
         })
 
         // Reload conversations if new
@@ -525,6 +530,11 @@ export default function ChatPage() {
                               {message.confidence_score !== undefined && (
                                 <Badge variant="outline" className={getConfidenceColor(message.confidence_score)}>
                                   {getConfidenceLabel(message.confidence_score)}
+                                </Badge>
+                              )}
+                              {message.low_confidence_warning && (
+                                <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600">
+                                  Low KB Match
                                 </Badge>
                               )}
                             </div>

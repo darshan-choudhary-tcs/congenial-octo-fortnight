@@ -165,6 +165,7 @@ class Message(Base):
 
     # Explainability data
     confidence_score = Column(Float)
+    low_confidence_warning = Column(Boolean, default=False)
     reasoning_chain = Column(JSON)
     sources = Column(JSON)
     grounding_evidence = Column(JSON)

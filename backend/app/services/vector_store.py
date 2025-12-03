@@ -221,13 +221,16 @@ class VectorStoreService:
         Calculate calibrated similarity score from squared Euclidean distance.
         Optimized for high-dimensional embeddings (768-1536 dimensions).
 
+        CONSERVATIVE CALIBRATION: Designed to prevent gibberish/irrelevant queries
+        from receiving artificially high confidence scores.
+
         ChromaDB returns SQUARED Euclidean distances, resulting in larger values (200-500+).
         Distance ranges and their typical meanings (based on observed data):
-        - 0.0 - 150.0:   Nearly identical / Very high similarity (0.85 - 1.0)
-        - 150.0 - 250.0: Highly relevant / High similarity (0.70 - 0.85)
-        - 250.0 - 350.0: Moderately relevant / Good similarity (0.55 - 0.70)
-        - 350.0 - 450.0: Somewhat relevant / Fair similarity (0.40 - 0.55)
-        - > 450.0:       Low relevance / Low similarity (0.0 - 0.40)
+        - 0.0 - 100.0:   Nearly identical / Very high similarity (0.80 - 1.0)
+        - 100.0 - 200.0: Highly relevant / High similarity (0.60 - 0.80)
+        - 200.0 - 300.0: Moderately relevant / Fair similarity (0.40 - 0.60)
+        - 300.0 - 400.0: Weakly relevant / Low similarity (0.20 - 0.40)
+        - > 400.0:       Irrelevant / Very low similarity (0.0 - 0.20)
 
         Args:
             distance: Squared Euclidean distance from ChromaDB
@@ -238,24 +241,25 @@ class VectorStoreService:
         if distance < 0:
             return 1.0  # Handle edge case
 
-        # Piecewise linear mapping calibrated for SQUARED Euclidean distances (actual observed range: 200-500+)
-        # ChromaDB appears to return squared distances, not regular Euclidean
-        if distance <= 150.0:
-            # Very similar: map [0, 150] -> [1.0, 0.85]
-            return 1.0 - (distance / 150.0) * 0.15
-        elif distance <= 250.0:
-            # Highly relevant: map [150, 250] -> [0.85, 0.70]
-            return 0.85 - ((distance - 150.0) / 100.0) * 0.15
-        elif distance <= 350.0:
-            # Moderately relevant: map [250, 350] -> [0.70, 0.55]
-            return 0.70 - ((distance - 250.0) / 100.0) * 0.15
-        elif distance <= 450.0:
-            # Somewhat relevant: map [350, 450] -> [0.55, 0.40]
-            return 0.55 - ((distance - 350.0) / 100.0) * 0.15
+        # CONSERVATIVE piecewise linear mapping - much stricter than previous version
+        # This prevents gibberish queries from getting high confidence scores
+        if distance <= 100.0:
+            # Very similar: map [0, 100] -> [1.0, 0.80]
+            return 1.0 - (distance / 100.0) * 0.20
+        elif distance <= 200.0:
+            # Highly relevant: map [100, 200] -> [0.80, 0.60]
+            return 0.80 - ((distance - 100.0) / 100.0) * 0.20
+        elif distance <= 300.0:
+            # Moderately relevant: map [200, 300] -> [0.60, 0.40]
+            return 0.60 - ((distance - 200.0) / 100.0) * 0.20
+        elif distance <= 400.0:
+            # Weakly relevant: map [300, 400] -> [0.40, 0.20]
+            return 0.40 - ((distance - 300.0) / 100.0) * 0.20
         else:
-            # Low relevance: exponential decay for distances > 450
-            # map [450, infinity] -> [0.40, 0.0]
-            return max(0.0, 0.40 * math.exp(-(distance - 450.0) / 200.0))
+            # Irrelevant: exponential decay for distances > 400
+            # map [400, infinity] -> [0.20, 0.0]
+            # Much steeper decay to ensure gibberish gets very low scores
+            return max(0.0, 0.20 * math.exp(-(distance - 400.0) / 100.0))
 
     async def search_multiple_collections(
         self,

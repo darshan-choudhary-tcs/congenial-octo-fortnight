@@ -30,10 +30,10 @@ export function getConfidenceColor(confidence: number) {
 }
 
 export function getConfidenceLabel(confidence: number) {
-  if (confidence >= 0.85) return 'Very High'
-  if (confidence >= 0.70) return 'High'
-  if (confidence >= 0.55) return 'Good'
-  if (confidence >= 0.40) return 'Moderate'
-  if (confidence >= 0.25) return 'Low'
-  return 'Very Low'
+  if (confidence >= 0.85) return 'Very High ' + confidence.toFixed(2)
+  if (confidence >= 0.70) return 'High ' + confidence.toFixed(2)
+  if (confidence >= 0.50) return 'Good ' + confidence.toFixed(2)
+  if (confidence >= 0.40) return 'Moderate ' + confidence.toFixed(2)
+  if (confidence >= 0.30) return 'Low ' + confidence.toFixed(2)
+  return 'Very Low '
 }

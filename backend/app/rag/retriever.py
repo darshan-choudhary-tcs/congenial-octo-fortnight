@@ -8,6 +8,7 @@ from datetime import datetime
 from app.services.llm_service import llm_service
 from app.services.vector_store import vector_store_service
 from app.config import settings
+from app.rag.query_validator import query_validator
 
 class RAGRetriever:
     """Retrieval Augmented Generation with source attribution and grounding"""
@@ -31,11 +32,15 @@ class RAGRetriever:
             user_id: User ID for user-specific collection search
 
         Returns:
-            List of relevant documents with metadata
+            List of relevant documents with metadata (includes query_quality in metadata)
         """
         try:
             if n_results is None:
                 n_results = settings.MAX_RETRIEVAL_DOCS
+
+            # Validate query quality to detect gibberish
+            query_quality = query_validator.validate_query(query)
+            logger.info(f"Query quality: {query_quality['quality_score']:.2f}, Valid: {query_quality['is_valid']}")
 
             # Search both global and user collections
             results = await vector_store_service.search_multiple_collections(
@@ -45,6 +50,10 @@ class RAGRetriever:
                 n_results=n_results,
                 filter_metadata=filter_metadata
             )
+
+            # Attach query quality information to each result for later use
+            for result in results:
+                result['query_quality'] = query_quality
 
             # Fallback: If no results found, try the other provider
             if not results:
@@ -225,9 +234,10 @@ Answer:"""
     ) -> float:
         """
         Calculate multi-factor confidence score combining:
-        - Similarity scores (70%) - Primary signal from vector search quality
+        - Similarity scores (60%) - Primary signal from vector search quality
         - Source citation quality (20%) - Whether sources were effectively used
         - Response grounding indicators (10%) - Strong uncertainty detection
+        - Query quality (10%) - Penalizes gibberish/meaningless queries
 
         Args:
             avg_similarity: Average similarity from vector search
@@ -238,22 +248,22 @@ Answer:"""
         Returns:
             Confidence score between 0.0 and 1.0
         """
-        # Factor 1: Similarity Score (70% weight) - Primary indicator of retrieval quality
-        # Already calibrated by the new vector store similarity calculation
+        # Factor 1: Similarity Score (60% weight) - Primary indicator of retrieval quality
+        # Already calibrated by the new conservative vector store similarity calculation
         similarity_score = avg_similarity
 
         # Factor 2: Source Citation Quality (20% weight)
         # How many sources were actually cited vs retrieved?
-        # More generous scoring: even 2-3 citations from 5 docs is good quality
+        # Conservative scoring to prevent false confidence
         if retrieved_docs:
             citation_ratio = len(grounding_evidence) / len(retrieved_docs)
-            # Generous bonus for citing multiple sources
-            citation_diversity = min(0.3, len(grounding_evidence) * 0.08)
-            # Base score of 0.7 if any citations exist
-            base_citation = 0.7 if len(grounding_evidence) > 0 else 0.3
-            citation_score = min(1.0, base_citation + citation_ratio * 0.2 + citation_diversity)
+            # Less generous than before - require good citation ratio
+            citation_diversity = min(0.2, len(grounding_evidence) * 0.05)
+            # Base score of 0.6 if any citations exist, 0.2 if none
+            base_citation = 0.6 if len(grounding_evidence) > 0 else 0.2
+            citation_score = min(1.0, base_citation + citation_ratio * 0.3 + citation_diversity)
         else:
-            citation_score = 0.6  # Neutral-positive score if no docs retrieved
+            citation_score = 0.3  # Lower neutral score if no docs retrieved
 
         # Factor 3: Response Grounding Indicators (10% weight)
         # Check for strong uncertainty indicators that should lower confidence
@@ -262,34 +272,40 @@ Answer:"""
             "the context doesn't contain",
             "i cannot find",
             "unable to determine",
-            "no information is provided"
+            "no information is provided",
+            "cannot answer",
+            "not enough context"
         ]
         response_lower = response_text.lower()
         uncertainty_penalty = sum(1 for phrase in uncertainty_phrases if phrase in response_lower)
-        # Only apply penalty for strong uncertainty, be generous otherwise
-        grounding_score = max(0.5, 1.0 - (uncertainty_penalty * 0.25))
+        # Apply stronger penalties for uncertainty
+        grounding_score = max(0.3, 1.0 - (uncertainty_penalty * 0.3))
 
-        # Weighted combination (70% similarity + 20% citation + 10% grounding)
+        # Factor 4: Query Quality (10% weight) - NEW: Penalizes gibberish queries
+        query_quality_score = 1.0  # Default to high quality
+        if retrieved_docs and len(retrieved_docs) > 0:
+            # Extract query quality from first document (all have same quality)
+            query_quality = retrieved_docs[0].get('query_quality', {})
+            query_quality_score = query_quality.get('quality_score', 1.0)
+
+            if query_quality_score < 0.5:
+                logger.warning(f"Low query quality detected: {query_quality_score:.2f}, Issues: {query_quality.get('issues', [])}")
+
+        # Weighted combination (60% similarity + 20% citation + 10% grounding + 10% query quality)
         final_confidence = (
-            similarity_score * 0.70 +
+            similarity_score * 0.60 +
             citation_score * 0.20 +
-            grounding_score * 0.10
+            grounding_score * 0.10 +
+            query_quality_score * 0.10
         )
 
         # Log detailed breakdown for debugging
-        logger.info(f"Confidence breakdown: similarity={similarity_score:.3f} (70%), citation={citation_score:.3f} (20%), grounding={grounding_score:.3f} (10%) → final={final_confidence:.3f}")
+        logger.info(f"Confidence breakdown: similarity={similarity_score:.3f} (60%), citation={citation_score:.3f} (20%), grounding={grounding_score:.3f} (10%), query_quality={query_quality_score:.3f} (10%) → final={final_confidence:.3f}")
         logger.info(f"  - Citations: {len(grounding_evidence)}/{len(retrieved_docs)} sources cited")
         logger.info(f"  - Uncertainty penalties: {uncertainty_penalty}")
 
         # Ensure score is between 0.0 and 1.0
         final_confidence = max(0.0, min(1.0, final_confidence))
-
-        logger.debug(
-            f"Confidence breakdown - Similarity: {similarity_score:.3f} (50%), "
-            f"Citations: {citation_score:.3f} (30%), "
-            f"Grounding: {grounding_score:.3f} (20%), "
-            f"Final: {final_confidence:.3f}"
-        )
 
         return final_confidence
 

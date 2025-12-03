@@ -49,6 +49,7 @@ class ChatResponse(BaseModel):
     response: str
     sources: List[Dict[str, Any]] = []
     confidence_score: float
+    low_confidence_warning: bool = False
     grounding: Optional[Dict[str, Any]] = None
     explanation: Optional[str] = None
     reasoning_chain: List[Dict[str, Any]] = []
@@ -134,6 +135,7 @@ async def send_message(
                 } for src in result.get('sources', [])
             ],
             confidence_score=result.get('confidence_score', 0.0),
+            low_confidence_warning=result.get('low_confidence_warning', False),
             reasoning_chain=result.get('reasoning_chain', []),
             sources=result.get('sources', []),
             grounding_evidence=result.get('grounding'),
@@ -202,6 +204,7 @@ async def send_message(
             response=result.get('response', ''),
             sources=result.get('sources', []),
             confidence_score=result.get('confidence_score', 0.0),
+            low_confidence_warning=result.get('low_confidence_warning', False),
             grounding=result.get('grounding'),
             explanation=result.get('explanation'),
             reasoning_chain=result.get('reasoning_chain', []),
@@ -269,6 +272,7 @@ async def get_conversation_messages(
             'content': msg.content,
             'sources': msg.sources if msg.role == 'assistant' else None,
             'confidence_score': msg.confidence_score,
+            'low_confidence_warning': msg.low_confidence_warning if msg.role == 'assistant' else False,
             'created_at': msg.created_at.isoformat()
         }
         for msg in messages
@@ -391,6 +395,7 @@ async def send_message_stream(
                         } for src in assistant_message_data.get('sources', [])
                     ],
                     confidence_score=assistant_message_data.get('confidence_score', 0.0),
+                    low_confidence_warning=assistant_message_data.get('low_confidence_warning', False),
                     reasoning_chain=assistant_message_data.get('reasoning_chain', []),
                     sources=assistant_message_data.get('sources', []),
                     grounding_evidence=assistant_message_data.get('grounding'),
