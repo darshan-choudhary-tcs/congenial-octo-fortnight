@@ -85,6 +85,7 @@ class Document(Base):
     description = Column(Text)
     category = Column(String)
     tags = Column(JSON)
+    scope = Column(String, default="user")  # 'global' or 'user'
 
     # Processing status
     is_processed = Column(Boolean, default=False)

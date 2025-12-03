@@ -17,16 +17,18 @@ class RAGRetriever:
         query: str,
         provider: str = "custom",
         n_results: int = None,
-        filter_metadata: Optional[Dict[str, Any]] = None
+        filter_metadata: Optional[Dict[str, Any]] = None,
+        user_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
-        Retrieve relevant documents for a query
+        Retrieve relevant documents for a query from both global and user collections
 
         Args:
             query: User query
             provider: LLM provider for embeddings
             n_results: Number of results
             filter_metadata: Metadata filter
+            user_id: User ID for user-specific collection search
 
         Returns:
             List of relevant documents with metadata
@@ -35,9 +37,11 @@ class RAGRetriever:
             if n_results is None:
                 n_results = settings.MAX_RETRIEVAL_DOCS
 
-            results = await vector_store_service.similarity_search(
+            # Search both global and user collections
+            results = await vector_store_service.search_multiple_collections(
                 query=query,
                 provider=provider,
+                user_id=user_id,
                 n_results=n_results,
                 filter_metadata=filter_metadata
             )
@@ -47,9 +51,10 @@ class RAGRetriever:
                 other_provider = "ollama" if provider == "custom" else "custom"
                 logger.info(f"No results from {provider}, trying {other_provider} provider...")
                 try:
-                    results = await vector_store_service.similarity_search(
+                    results = await vector_store_service.search_multiple_collections(
                         query=query,
                         provider=other_provider,
+                        user_id=user_id,
                         n_results=n_results,
                         filter_metadata=filter_metadata
                     )

@@ -73,6 +73,13 @@ export const documentsAPI = {
     })
   },
 
+  uploadGlobal: (formData: FormData, provider: string = 'custom') => {
+    formData.append('provider', provider)
+    return api.post('/documents/global/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
   list: () => api.get('/documents/'),
 
   get: (documentId: string) => api.get(`/documents/${documentId}`),

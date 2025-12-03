@@ -21,7 +21,8 @@ class AgentOrchestrator:
         query: str,
         provider: str = "custom",
         explainability_level: str = "detailed",
-        include_grounding: bool = True
+        include_grounding: bool = True,
+        user_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Execute RAG pipeline with multi-agent support
@@ -31,6 +32,7 @@ class AgentOrchestrator:
             provider: LLM provider
             explainability_level: Level of explanation
             include_grounding: Whether to verify grounding
+            user_id: User ID for multi-tenant document search
 
         Returns:
             Complete response with agent logs
@@ -45,7 +47,8 @@ class AgentOrchestrator:
             research_agent = get_agent('research')
             research_result = await research_agent.execute(
                 input_data={'query': query},
-                provider=provider
+                provider=provider,
+                user_id=user_id
             )
             agent_logs.append({
                 'agent': 'ResearchAgent',
@@ -281,7 +284,8 @@ class AgentOrchestrator:
         query: str,
         provider: str = "custom",
         explainability_level: str = "detailed",
-        include_grounding: bool = True
+        include_grounding: bool = True,
+        user_id: Optional[int] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Execute RAG pipeline with multi-agent support, yielding status events via SSE
@@ -291,6 +295,7 @@ class AgentOrchestrator:
             provider: LLM provider
             explainability_level: Level of explanation
             include_grounding: Whether to verify grounding
+            user_id: User ID for multi-tenant document search
 
         Yields:
             Status events with agent progress
@@ -328,7 +333,8 @@ class AgentOrchestrator:
             research_agent = get_agent('research')
             research_result = await research_agent.execute(
                 input_data={'query': query},
-                provider=provider
+                provider=provider,
+                user_id=user_id
             )
             agent_logs.append({
                 'agent': 'ResearchAgent',

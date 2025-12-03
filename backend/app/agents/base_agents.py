@@ -49,13 +49,14 @@ class ResearchAgent(BaseAgent):
             description="Specialized in retrieving and analyzing relevant information from documents"
         )
 
-    async def execute(self, input_data: Dict[str, Any], provider: str = "custom") -> Dict[str, Any]:
+    async def execute(self, input_data: Dict[str, Any], provider: str = "custom", user_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Execute research task
 
         Args:
             input_data: Should contain 'query' and optional 'filters'
             provider: LLM provider
+            user_id: User ID for multi-tenant search
 
         Returns:
             Research results with retrieved documents and analysis
@@ -68,11 +69,12 @@ class ResearchAgent(BaseAgent):
 
             logger.info(f"[{self.name}] Researching: {query} (provider: {provider})")
 
-            # Retrieve relevant documents
+            # Retrieve relevant documents (searches both global and user collections)
             retrieved_docs = await rag_retriever.retrieve_relevant_documents(
                 query=query,
                 provider=provider,
-                filter_metadata=filters
+                filter_metadata=filters,
+                user_id=user_id
             )
 
             if not retrieved_docs:

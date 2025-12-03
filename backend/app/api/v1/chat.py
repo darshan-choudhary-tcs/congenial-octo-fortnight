@@ -112,12 +112,13 @@ async def send_message(
         db.add(user_message)
         db.flush()
 
-        # Execute RAG with agents
+        # Execute RAG with agents (searches both global and user-specific documents)
         result = await orchestrator.execute_rag_with_agents(
             query=chat_request.message,
             provider=provider,
             explainability_level=current_user.explainability_level,
-            include_grounding=chat_request.include_grounding
+            include_grounding=chat_request.include_grounding,
+            user_id=current_user.id
         )
 
         # Save assistant message
@@ -355,12 +356,13 @@ async def send_message_stream(
             yield f"event: conversation\ndata: {json.dumps({'conversation_id': conversation.uuid})}\n\n"
             await asyncio.sleep(0.01)
 
-            # Execute RAG with streaming agent status
+            # Execute RAG with streaming agent status (searches both global and user documents)
             async for event in orchestrator.execute_rag_with_agents_stream(
                 query=chat_request.message,
                 provider=provider,
                 explainability_level=current_user.explainability_level,
-                include_grounding=chat_request.include_grounding
+                include_grounding=chat_request.include_grounding,
+                user_id=current_user.id
             ):
                 event_type = event.get('type', 'status')
                 event_data = event.get('data', {})
