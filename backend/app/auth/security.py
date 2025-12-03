@@ -12,9 +12,10 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database.db import get_db
 from app.database.models import User
+import argon2
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")

@@ -2,6 +2,7 @@
 FastAPI Backend for RAG & Multi-Agent Application
 Main entry point for the application
 """
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -10,6 +11,9 @@ import uvicorn
 from app.api.v1 import auth, chat, documents, agents, admin, explainability, utilities, metering
 from app.database.db import init_db, get_db
 from app.config import settings
+
+tiktoken_cache_dir = r"token"
+os.environ["TIKTOKEN_CACHE_DIR"] = tiktoken_cache_dir
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
