@@ -86,6 +86,12 @@ export const documentsAPI = {
 
   delete: (documentId: string, provider: string = 'custom') =>
     api.delete(`/documents/${documentId}?provider=${provider}`),
+
+  ocr: (formData: FormData) => {
+    return api.post('/documents/ocr', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 // Agents API

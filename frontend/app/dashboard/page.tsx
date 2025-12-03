@@ -36,6 +36,14 @@ export default function DashboardPage() {
       gradient: 'from-green-500 to-emerald-500',
     },
     {
+      title: 'OCR',
+      description: 'Extract text from images and PDFs using AI vision',
+      icon: Brain,
+      href: '/dashboard/ocr',
+      permission: 'documents:create',
+      gradient: 'from-indigo-500 to-purple-500',
+    },
+    {
       title: 'Explainability',
       description: 'View AI reasoning and confidence scores',
       icon: BarChart3,

@@ -26,11 +26,13 @@ class Settings(BaseSettings):
     CUSTOM_LLM_MODEL: str = "azure_ai/genailab-maas-DeepSeek-V3-0324"
     CUSTOM_LLM_API_KEY: str = ""
     CUSTOM_EMBEDDING_MODEL: str = "azure/genailab-maas-text-embedding-3-large"
+    CUSTOM_VISION_MODEL: str = "azure_ai/genailab-maas-Llama-3.2-90B-Vision-Instruct"
 
     # Ollama
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2"
     OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
+    OLLAMA_VISION_MODEL: str = "llama3.2-vision"
 
     # ChromaDB
     CHROMA_PERSIST_DIR: str = "./chroma_db"
@@ -57,6 +59,14 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".txt", ".csv", ".docx"]
     UPLOAD_DIR: str = "./uploads"
+
+    # OCR Configuration
+    OCR_SUPPORTED_FORMATS: List[str] = [".jpg", ".jpeg", ".png", ".pdf", ".tiff", ".tif", ".bmp", ".webp"]
+    OCR_MAX_FILE_SIZE: int = 20971520  # 20MB for images
+    OCR_IMAGE_MAX_DIMENSION: int = 2048  # Max width/height for processing
+    OCR_CONFIDENCE_THRESHOLD: float = 0.7
+    OCR_ENABLE_PREPROCESSING: bool = True
+    OCR_PDF_DPI: int = 300  # DPI for PDF to image conversion
 
     class Config:
         env_file = ".env"
