@@ -120,8 +120,8 @@ class RAGRetriever:
             # Build system message based on explainability level
             system_messages = {
                 "basic": "You are a helpful AI assistant. Answer the user's question based on the provided context. Be concise and accurate.",
-                "detailed": "You are a helpful AI assistant. Answer the user's question based on the provided context. Include reasoning and cite sources using [Source N] format. Explain your confidence level.",
-                "debug": "You are a helpful AI assistant. Answer the user's question based on the provided context. Provide detailed reasoning, cite all sources using [Source N] format, explain your confidence level, note any assumptions, and highlight potential limitations or uncertainties."
+                "detailed": "You are a helpful AI assistant. Answer the user's question based on the provided context. Include reasoning and cite sources using [Source N] format.",
+                "debug": "You are a helpful AI assistant. Answer the user's question based on the provided context. Provide detailed reasoning, cite all sources using [Source N] format, note any assumptions, and highlight potential limitations or uncertainties."
             }
 
             system_message = system_messages.get(explainability_level, system_messages["detailed"])

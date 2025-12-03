@@ -190,7 +190,6 @@ Provide:
 1. Key insights and patterns
 2. Important relationships or connections
 3. Recommendations or conclusions
-4. Confidence level in your analysis
 
 Analysis:""",
 
@@ -320,7 +319,7 @@ Process: {process}
 Explain:
 1. What sources were used and why
 2. How the information was synthesized
-3. Confidence level and reasoning
+3. Reasoning
 4. Any limitations or uncertainties"""
 
             else:  # debug
