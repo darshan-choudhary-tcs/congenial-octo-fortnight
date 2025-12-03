@@ -219,11 +219,13 @@ Analysis:"""
 
             prompt = analysis_prompts.get(analysis_type, analysis_prompts['general'])
 
-            analysis = await llm_service.invoke_llm(
+            analysis_data = await llm_service.generate_response(
                 prompt=prompt,
                 provider=provider,
                 system_message="You are an expert data analyst skilled at finding patterns and generating actionable insights."
             )
+            analysis = analysis_data["content"]
+            token_usage = analysis_data["token_usage"]
 
             result = {
                 'status': 'completed',
@@ -232,7 +234,8 @@ Analysis:"""
                 'analysis_type': analysis_type,
                 'confidence': 0.85,  # Can be calculated based on data quality
                 'reasoning': f"Performed {analysis_type} analysis on provided data",
-                'execution_time': (datetime.utcnow() - start_time).total_seconds()
+                'execution_time': (datetime.utcnow() - start_time).total_seconds(),
+                'token_usage': token_usage
             }
 
             self.add_to_memory({
@@ -337,11 +340,13 @@ Provide:
 6. Grounding verification results
 7. Recommendations for improving confidence"""
 
-            explanation = await llm_service.invoke_llm(
+            explanation_data = await llm_service.generate_response(
                 prompt=explanation_prompt,
                 provider=provider,
                 system_message="You are an AI transparency expert. Provide clear, honest explanations of AI decision-making processes."
             )
+            explanation = explanation_data["content"]
+            token_usage = explanation_data["token_usage"]
 
             # Generate reasoning chain
             reasoning_chain = self._generate_reasoning_chain(sources, response)
@@ -353,7 +358,8 @@ Provide:
                 'reasoning_chain': reasoning_chain,
                 'explainability_level': explainability_level,
                 'confidence': self._calculate_explanation_confidence(sources),
-                'execution_time': (datetime.utcnow() - start_time).total_seconds()
+                'execution_time': (datetime.utcnow() - start_time).total_seconds(),
+                'token_usage': token_usage
             }
 
             logger.info(f"[{self.name}] Explanation generated")
@@ -467,7 +473,8 @@ class GroundingAgent(BaseAgent):
                 'verification_details': verification['verification_details'],
                 'confidence': verification['grounding_score'],
                 'reasoning': f"Grounding score: {verification['grounding_score']:.2f}",
-                'execution_time': (datetime.utcnow() - start_time).total_seconds()
+                'execution_time': (datetime.utcnow() - start_time).total_seconds(),
+                'token_usage': verification.get('token_usage', {})
             }
 
             logger.info(f"[{self.name}] Grounding verification completed (score: {verification['grounding_score']:.2f})")

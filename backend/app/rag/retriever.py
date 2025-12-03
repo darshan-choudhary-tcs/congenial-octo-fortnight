@@ -145,11 +145,13 @@ Answer:"""
 
             # Generate response
             start_time = datetime.utcnow()
-            response_text = await llm_service.invoke_llm(
+            response_data = await llm_service.generate_response(
                 prompt=prompt,
                 provider=provider,
                 system_message=system_message
             )
+            response_text = response_data["content"]
+            token_usage = response_data["token_usage"]
             end_time = datetime.utcnow()
 
             # Calculate base similarity score
@@ -175,10 +177,11 @@ Answer:"""
                 'grounding_evidence': grounding_evidence,
                 'generation_time': (end_time - start_time).total_seconds(),
                 'provider': provider,
-                'explainability_level': explainability_level
+                'explainability_level': explainability_level,
+                'token_usage': token_usage
             }
 
-            logger.info(f"Generated response with {len(sources)} sources (confidence: {confidence_score:.2f})")
+            logger.info(f"Generated response with {len(sources)} sources (confidence: {confidence_score:.2f}, tokens: {token_usage['total_tokens']})")
 
             return result
 
@@ -324,11 +327,13 @@ Unsupported Claims: [list]
 Grounding Score: [0.0-1.0]
 Explanation: [brief explanation]"""
 
-            verification_result = await llm_service.invoke_llm(
+            verification_data = await llm_service.generate_response(
                 prompt=verification_prompt,
                 provider=provider,
                 system_message="You are a precise fact-checking assistant."
             )
+            verification_result = verification_data["content"]
+            token_usage = verification_data["token_usage"]
 
             # Parse grounding score (simple extraction)
             grounding_score = 0.8  # Default
@@ -343,7 +348,8 @@ Explanation: [brief explanation]"""
             return {
                 'is_grounded': grounding_score >= 0.7,
                 'grounding_score': grounding_score,
-                'verification_details': verification_result
+                'verification_details': verification_result,
+                'token_usage': token_usage
             }
 
         except Exception as e:

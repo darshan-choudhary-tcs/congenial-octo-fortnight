@@ -234,7 +234,45 @@ async def get_system_stats(
 ):
     """Get system statistics (admin only)"""
 
-    from app.database.models import Document, Conversation, Message, AgentLog
+    from app.database.models import Document, Conversation, Message, AgentLog, TokenUsage
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    # Calculate date ranges
+    now = datetime.utcnow()
+    last_30_days = now - timedelta(days=30)
+    last_7_days = now - timedelta(days=7)
+
+    # Token usage statistics
+    total_tokens = db.query(func.sum(TokenUsage.total_tokens)).scalar() or 0
+    total_cost = db.query(func.sum(TokenUsage.estimated_cost)).scalar() or 0.0
+
+    tokens_last_30_days = db.query(func.sum(TokenUsage.total_tokens)).filter(
+        TokenUsage.created_at >= last_30_days
+    ).scalar() or 0
+
+    tokens_last_7_days = db.query(func.sum(TokenUsage.total_tokens)).filter(
+        TokenUsage.created_at >= last_7_days
+    ).scalar() or 0
+
+    cost_last_30_days = db.query(func.sum(TokenUsage.estimated_cost)).filter(
+        TokenUsage.created_at >= last_30_days
+    ).scalar() or 0.0
+
+    # Provider breakdown
+    provider_stats = db.query(
+        TokenUsage.provider,
+        func.sum(TokenUsage.total_tokens).label('tokens'),
+        func.count(TokenUsage.id).label('requests')
+    ).group_by(TokenUsage.provider).all()
+
+    provider_breakdown = {
+        stat.provider: {
+            'tokens': stat.tokens,
+            'requests': stat.requests
+        }
+        for stat in provider_stats
+    }
 
     return {
         'total_users': db.query(User).count(),
@@ -243,7 +281,16 @@ async def get_system_stats(
         'processed_documents': db.query(Document).filter(Document.is_processed == True).count(),
         'total_conversations': db.query(Conversation).count(),
         'total_messages': db.query(Message).count(),
-        'total_agent_executions': db.query(AgentLog).count()
+        'total_agent_executions': db.query(AgentLog).count(),
+        'token_usage': {
+            'total_tokens': total_tokens,
+            'total_cost': round(total_cost, 4),
+            'tokens_last_30_days': tokens_last_30_days,
+            'tokens_last_7_days': tokens_last_7_days,
+            'cost_last_30_days': round(cost_last_30_days, 4),
+            'provider_breakdown': provider_breakdown,
+            'currency': 'USD'
+        }
     }
 
 def mask_api_key(key: str) -> str:

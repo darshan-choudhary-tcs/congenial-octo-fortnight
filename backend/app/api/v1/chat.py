@@ -11,11 +11,31 @@ import json
 import asyncio
 
 from app.database.db import get_db
-from app.database.models import User, Conversation, Message, AgentLog
+from app.database.models import User, Conversation, Message, AgentLog, TokenUsage
 from app.auth.security import get_current_active_user, require_permission
 from app.agents.orchestrator import orchestrator
+from app.config import settings
 
 router = APIRouter()
+
+# Token pricing configuration (per 1M tokens)
+TOKEN_PRICING = {
+    "custom": {
+        "prompt": 0.14,  # DeepSeek pricing: $0.14 per 1M prompt tokens
+        "completion": 0.28  # DeepSeek pricing: $0.28 per 1M completion tokens
+    },
+    "ollama": {
+        "prompt": 0.0,  # Local model - free
+        "completion": 0.0
+    }
+}
+
+def _calculate_token_cost(provider: str, prompt_tokens: int, completion_tokens: int) -> float:
+    """Calculate the estimated cost for token usage"""
+    pricing = TOKEN_PRICING.get(provider, TOKEN_PRICING["custom"])
+    prompt_cost = (prompt_tokens / 1_000_000) * pricing["prompt"]
+    completion_cost = (completion_tokens / 1_000_000) * pricing["completion"]
+    return round(prompt_cost + completion_cost, 6)
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
@@ -136,6 +156,40 @@ async def send_message(
                 confidence=log_entry.get('result', {}).get('confidence', 0.0)
             )
             db.add(agent_log)
+
+        db.flush()
+
+        # Save token usage records
+        token_usage_data = result.get('token_usage', {})
+        if token_usage_data and token_usage_data.get('operations'):
+            # Get model name based on provider
+            model_name = settings.CUSTOM_LLM_MODEL if provider == "custom" else settings.OLLAMA_MODEL
+
+            for operation in token_usage_data['operations']:
+                op_tokens = operation.get('token_usage', {})
+                if op_tokens.get('total_tokens', 0) > 0:
+                    # Calculate cost (placeholder - adjust based on actual pricing)
+                    cost = _calculate_token_cost(
+                        provider=provider,
+                        prompt_tokens=op_tokens.get('prompt_tokens', 0),
+                        completion_tokens=op_tokens.get('completion_tokens', 0)
+                    )
+
+                    token_usage = TokenUsage(
+                        user_id=current_user.id,
+                        conversation_id=conversation.id,
+                        message_id=assistant_message.id,
+                        provider=provider,
+                        model=model_name,
+                        operation_type=operation['operation'],
+                        prompt_tokens=op_tokens.get('prompt_tokens', 0),
+                        completion_tokens=op_tokens.get('completion_tokens', 0),
+                        total_tokens=op_tokens.get('total_tokens', 0),
+                        embedding_tokens=op_tokens.get('embedding_tokens', 0),
+                        estimated_cost=cost,
+                        currency="USD"
+                    )
+                    db.add(token_usage)
 
         db.commit()
 
@@ -358,6 +412,40 @@ async def send_message_stream(
                         confidence=log_entry.get('result', {}).get('confidence', 0.0)
                     )
                     db.add(agent_log)
+
+                db.flush()
+
+                # Save token usage records from streaming response
+                token_usage_data = assistant_message_data.get('token_usage', {})
+                if token_usage_data and token_usage_data.get('operations'):
+                    # Get model name based on provider
+                    model_name = settings.CUSTOM_LLM_MODEL if provider == "custom" else settings.OLLAMA_MODEL
+
+                    for operation in token_usage_data['operations']:
+                        op_tokens = operation.get('token_usage', {})
+                        if op_tokens.get('total_tokens', 0) > 0:
+                            # Calculate cost
+                            cost = _calculate_token_cost(
+                                provider=provider,
+                                prompt_tokens=op_tokens.get('prompt_tokens', 0),
+                                completion_tokens=op_tokens.get('completion_tokens', 0)
+                            )
+
+                            token_usage = TokenUsage(
+                                user_id=current_user.id,
+                                conversation_id=conversation.id,
+                                message_id=assistant_message.id,
+                                provider=provider,
+                                model=model_name,
+                                operation_type=operation['operation'],
+                                prompt_tokens=op_tokens.get('prompt_tokens', 0),
+                                completion_tokens=op_tokens.get('completion_tokens', 0),
+                                total_tokens=op_tokens.get('total_tokens', 0),
+                                embedding_tokens=op_tokens.get('embedding_tokens', 0),
+                                estimated_cost=cost,
+                                currency="USD"
+                            )
+                            db.add(token_usage)
 
                 db.commit()
 

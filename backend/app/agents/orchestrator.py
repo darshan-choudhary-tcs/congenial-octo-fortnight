@@ -91,6 +91,17 @@ class AgentOrchestrator:
             sources = rag_result['sources']
             confidence = rag_result['confidence_score']
 
+            # Track token usage from RAG generation
+            total_token_usage = {
+                'prompt_tokens': rag_result.get('token_usage', {}).get('prompt_tokens', 0),
+                'completion_tokens': rag_result.get('token_usage', {}).get('completion_tokens', 0),
+                'total_tokens': rag_result.get('token_usage', {}).get('total_tokens', 0),
+                'operations': [{
+                    'operation': 'rag_generation',
+                    'token_usage': rag_result.get('token_usage', {})
+                }]
+            }
+
             # Step 3: Grounding Agent - Verify grounding (if enabled)
             grounding_result = None
             if include_grounding:
@@ -108,6 +119,17 @@ class AgentOrchestrator:
                     'result': grounding_result,
                     'timestamp': datetime.utcnow().isoformat()
                 })
+
+                # Track grounding token usage
+                if grounding_result and grounding_result.get('token_usage'):
+                    grounding_tokens = grounding_result['token_usage']
+                    total_token_usage['prompt_tokens'] += grounding_tokens.get('prompt_tokens', 0)
+                    total_token_usage['completion_tokens'] += grounding_tokens.get('completion_tokens', 0)
+                    total_token_usage['total_tokens'] += grounding_tokens.get('total_tokens', 0)
+                    total_token_usage['operations'].append({
+                        'operation': 'grounding_verification',
+                        'token_usage': grounding_tokens
+                    })
 
                 # Enhance confidence with grounding score if available
                 if grounding_result and grounding_result.get('status') == 'completed':
@@ -134,6 +156,17 @@ class AgentOrchestrator:
                 'timestamp': datetime.utcnow().isoformat()
             })
 
+            # Track explainability token usage
+            if explainability_result and explainability_result.get('token_usage'):
+                explain_tokens = explainability_result['token_usage']
+                total_token_usage['prompt_tokens'] += explain_tokens.get('prompt_tokens', 0)
+                total_token_usage['completion_tokens'] += explain_tokens.get('completion_tokens', 0)
+                total_token_usage['total_tokens'] += explain_tokens.get('total_tokens', 0)
+                total_token_usage['operations'].append({
+                    'operation': 'explanation_generation',
+                    'token_usage': explain_tokens
+                })
+
             # Compile final result
             final_result = {
                 'response': response,
@@ -146,7 +179,8 @@ class AgentOrchestrator:
                 'agents_involved': ['ResearchAgent', 'GroundingAgent', 'ExplainabilityAgent'] if include_grounding else ['ResearchAgent', 'ExplainabilityAgent'],
                 'execution_time': (datetime.utcnow() - start_time).total_seconds(),
                 'provider': provider,
-                'explainability_level': explainability_level
+                'explainability_level': explainability_level,
+                'token_usage': total_token_usage
             }
 
             self.execution_history.append({
@@ -378,6 +412,17 @@ class AgentOrchestrator:
             sources = rag_result['sources']
             confidence = rag_result['confidence_score']
 
+            # Track token usage from RAG generation
+            total_token_usage = {
+                'prompt_tokens': rag_result.get('token_usage', {}).get('prompt_tokens', 0),
+                'completion_tokens': rag_result.get('token_usage', {}).get('completion_tokens', 0),
+                'total_tokens': rag_result.get('token_usage', {}).get('total_tokens', 0),
+                'operations': [{
+                    'operation': 'rag_generation',
+                    'token_usage': rag_result.get('token_usage', {})
+                }]
+            }
+
             yield {
                 'type': 'agent_complete',
                 'data': {
@@ -425,6 +470,17 @@ class AgentOrchestrator:
                     'result': grounding_result,
                     'timestamp': datetime.utcnow().isoformat()
                 })
+
+                # Track grounding token usage
+                if grounding_result and grounding_result.get('token_usage'):
+                    grounding_tokens = grounding_result['token_usage']
+                    total_token_usage['prompt_tokens'] += grounding_tokens.get('prompt_tokens', 0)
+                    total_token_usage['completion_tokens'] += grounding_tokens.get('completion_tokens', 0)
+                    total_token_usage['total_tokens'] += grounding_tokens.get('total_tokens', 0)
+                    total_token_usage['operations'].append({
+                        'operation': 'grounding_verification',
+                        'token_usage': grounding_tokens
+                    })
 
                 yield {
                     'type': 'agent_complete',
@@ -481,6 +537,17 @@ class AgentOrchestrator:
                 'timestamp': datetime.utcnow().isoformat()
             })
 
+            # Track explainability token usage
+            if explainability_result and explainability_result.get('token_usage'):
+                explain_tokens = explainability_result['token_usage']
+                total_token_usage['prompt_tokens'] += explain_tokens.get('prompt_tokens', 0)
+                total_token_usage['completion_tokens'] += explain_tokens.get('completion_tokens', 0)
+                total_token_usage['total_tokens'] += explain_tokens.get('total_tokens', 0)
+                total_token_usage['operations'].append({
+                    'operation': 'explanation_generation',
+                    'token_usage': explain_tokens
+                })
+
             yield {
                 'type': 'agent_complete',
                 'data': {
@@ -513,7 +580,8 @@ class AgentOrchestrator:
                 'agents_involved': agents_involved,
                 'execution_time': (datetime.utcnow() - start_time).total_seconds(),
                 'provider': provider,
-                'explainability_level': explainability_level
+                'explainability_level': explainability_level,
+                'token_usage': total_token_usage
             }
 
             self.execution_history.append({

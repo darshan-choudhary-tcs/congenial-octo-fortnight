@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Shield, Activity, Loader2, UserPlus, Edit, Trash2, Home, Settings } from 'lucide-react'
+import { Users, Shield, Activity, Loader2, UserPlus, Edit, Trash2, Home, Settings, TrendingUp, DollarSign, Zap } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 
@@ -43,6 +43,20 @@ interface SystemStats {
   total_agent_executions: number
   active_users_24h: number
   avg_confidence_score: number
+  token_usage?: {
+    total_tokens: number
+    total_cost: number
+    tokens_last_30_days: number
+    tokens_last_7_days: number
+    cost_last_30_days: number
+    provider_breakdown: {
+      [key: string]: {
+        tokens: number
+        requests: number
+      }
+    }
+    currency: string
+  }
 }
 
 interface LLMConfig {
@@ -278,6 +292,51 @@ export default function AdminPage() {
             </CardHeader>
           </Card>
         </div>
+
+        {/* Token Usage Stats */}
+        {stats?.token_usage && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
+              <CardHeader className="pb-3">
+                <CardDescription>Total Tokens</CardDescription>
+                <CardTitle className="text-3xl flex items-center gap-2">
+                  <Zap className="h-6 w-6 text-purple-600" />
+                  {stats.token_usage.total_tokens.toLocaleString()}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
+              <CardHeader className="pb-3">
+                <CardDescription>Total Cost</CardDescription>
+                <CardTitle className="text-3xl flex items-center gap-2">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                  ${stats.token_usage.total_cost.toFixed(4)}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
+              <CardHeader className="pb-3">
+                <CardDescription>Last 30 Days</CardDescription>
+                <CardTitle className="text-3xl flex items-center gap-2">
+                  <TrendingUp className="h-6 w-6 text-blue-600" />
+                  {stats.token_usage.tokens_last_30_days.toLocaleString()}
+                </CardTitle>
+                <CardDescription className="text-xs mt-1">
+                  ${stats.token_usage.cost_last_30_days.toFixed(4)}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900">
+              <CardHeader className="pb-3">
+                <CardDescription>Last 7 Days</CardDescription>
+                <CardTitle className="text-3xl flex items-center gap-2">
+                  <Activity className="h-6 w-6 text-orange-600" />
+                  {stats.token_usage.tokens_last_7_days.toLocaleString()}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+          </div>
+        )}
 
         <Tabs defaultValue="users" className="space-y-6">
           <TabsList>
@@ -528,6 +587,54 @@ export default function AdminPage() {
                       <span className="text-2xl font-bold">{stats?.total_agent_executions || 0}</span>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Token Usage</CardTitle>
+                  <CardDescription>LLM token consumption and costs</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {stats?.token_usage ? (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center pb-3 border-b">
+                        <span className="text-sm font-medium">Total Tokens</span>
+                        <span className="text-2xl font-bold">{stats.token_usage.total_tokens.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-3 border-b">
+                        <span className="text-sm font-medium">Total Cost</span>
+                        <span className="text-2xl font-bold text-green-600">${stats.token_usage.total_cost.toFixed(4)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-3 border-b">
+                        <span className="text-sm font-medium">Last 30 Days</span>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">{stats.token_usage.tokens_last_30_days.toLocaleString()}</div>
+                          <div className="text-xs text-muted-foreground">${stats.token_usage.cost_last_30_days.toFixed(4)}</div>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center pb-3 border-b">
+                        <span className="text-sm font-medium">Last 7 Days</span>
+                        <span className="text-2xl font-bold">{stats.token_usage.tokens_last_7_days.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium mb-2">Provider Breakdown</div>
+                        {Object.entries(stats.token_usage.provider_breakdown).map(([provider, data]) => (
+                          <div key={provider} className="flex justify-between items-center py-2">
+                            <span className="text-sm capitalize">{provider}</span>
+                            <div className="text-right">
+                              <div className="text-sm font-bold">{data.tokens.toLocaleString()}</div>
+                              <div className="text-xs text-muted-foreground">{data.requests} requests</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>No token usage data available</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
