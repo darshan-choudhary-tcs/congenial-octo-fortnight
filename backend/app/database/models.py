@@ -85,6 +85,7 @@ class Document(Base):
     description = Column(Text)
     category = Column(String)
     tags = Column(JSON)
+    scope = Column(String, default="user")  # 'global' or 'user'
 
     # Processing status
     is_processed = Column(Boolean, default=False)
@@ -164,6 +165,7 @@ class Message(Base):
 
     # Explainability data
     confidence_score = Column(Float)
+    low_confidence_warning = Column(Boolean, default=False)
     reasoning_chain = Column(JSON)
     sources = Column(JSON)
     grounding_evidence = Column(JSON)
@@ -211,3 +213,39 @@ class AgentLog(Base):
 
     # Relationships
     message = relationship("Message", back_populates="agent_logs")
+
+class TokenUsage(Base):
+    __tablename__ = "token_usage"
+
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String, unique=True, default=lambda: str(uuid.uuid4()))
+
+    # Relations
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    conversation_id = Column(Integer, ForeignKey('conversations.id'), nullable=True, index=True)
+    message_id = Column(Integer, ForeignKey('messages.id'), nullable=True, index=True)
+    agent_log_id = Column(Integer, ForeignKey('agent_logs.id'), nullable=True)
+
+    # LLM Configuration
+    provider = Column(String, nullable=False, index=True)  # custom, ollama
+    model = Column(String, nullable=False)
+    operation_type = Column(String, nullable=False, index=True)  # chat, embedding, analysis, grounding, explanation
+
+    # Token Counts
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    embedding_tokens = Column(Integer, default=0)
+
+    # Cost Tracking
+    estimated_cost = Column(Float, default=0.0)
+    currency = Column(String, default="USD")
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Relationships
+    user = relationship("User")
+    conversation = relationship("Conversation")
+    message = relationship("Message")
+    agent_log = relationship("AgentLog")

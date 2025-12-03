@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import {
   Brain,
   MessageSquare,
@@ -89,9 +90,9 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-gray-200 z-50">
+      <nav className="fixed top-0 w-full bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Brain className="h-8 w-8 text-blue-600" />
@@ -100,6 +101,7 @@ export default function LandingPage() {
             </span>
           </div>
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <Button variant="ghost" onClick={() => router.push('/auth/login')}>
               Login
             </Button>
@@ -140,7 +142,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section className="py-20 px-4 bg-white">
+      <section className="py-20 px-4 bg-white dark:bg-gray-950">
         <div className="container mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">Powerful Features</h2>
@@ -196,7 +198,7 @@ export default function LandingPage() {
       </section>
 
       {/* Benefits Section */}
-      <section className="py-20 px-4 bg-white">
+      <section className="py-20 px-4 bg-white dark:bg-gray-950">
         <div className="container mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -266,19 +268,19 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+      <section className="py-20 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-800 text-white">
         <div className="container mx-auto text-center">
-          <h2 className="text-4xl font-bold mb-6">
+          <h2 className="text-4xl font-bold mb-6 text-white">
             Ready to Transform Your Documents?
           </h2>
-          <p className="text-xl mb-8 max-w-2xl mx-auto text-blue-100">
+          <p className="text-xl mb-8 max-w-2xl mx-auto text-blue-100 dark:text-blue-200">
             Start your journey with intelligent document processing today.
             No credit card required.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
-              className="bg-white text-blue-600 hover:bg-gray-100 text-lg px-8"
+              className="bg-white text-blue-600 hover:bg-gray-100 dark:bg-white dark:text-blue-700 dark:hover:bg-gray-200 text-lg px-8"
               onClick={() => router.push('/auth/register')}
             >
               Get Started Free
@@ -287,7 +289,7 @@ export default function LandingPage() {
             <Button
               size="lg"
               variant="outline"
-              className="border-white text-white hover:bg-white/10 text-lg px-8"
+              className="border-white text-white hover:bg-white/10 dark:hover:bg-white/20 text-lg px-8"
               onClick={() => router.push('/auth/login')}
             >
               Sign In

@@ -6,6 +6,7 @@ import chromadb
 from chromadb.config import Settings
 from loguru import logger
 import uuid
+import math
 
 from app.config import settings
 from app.services.llm_service import llm_service
@@ -38,35 +39,55 @@ class VectorStoreService:
             logger.error(f"Failed to initialize ChromaDB: {e}")
             raise
 
-    def _get_or_create_collection(self, provider: str):
-        """Get or create a collection for a specific provider"""
-        collection_name = f"{settings.CHROMA_COLLECTION_NAME}_{provider}"
+    def get_collection_name(self, scope: str, provider: str, user_id: Optional[int] = None) -> str:
+        """Generate collection name based on scope and user"""
+        if scope == "global":
+            return f"{settings.CHROMA_COLLECTION_NAME}_global_{provider}"
+        elif scope == "user" and user_id:
+            return f"{settings.CHROMA_COLLECTION_NAME}_user_{user_id}_{provider}"
+        else:
+            # Fallback to old naming for backward compatibility
+            return f"{settings.CHROMA_COLLECTION_NAME}_{provider}"
+
+    def _get_or_create_collection(self, provider: str, scope: str = "global", user_id: Optional[int] = None):
+        """Get or create a collection for a specific provider and scope"""
+        collection_name = self.get_collection_name(scope, provider, user_id)
 
         try:
+            # Build metadata - ChromaDB doesn't accept None values
+            metadata = {"provider": provider, "scope": scope}
+            if user_id is not None:
+                metadata["user_id"] = str(user_id)  # Convert to string for ChromaDB
+
             collection = self.client.get_or_create_collection(
                 name=collection_name,
-                metadata={"provider": provider}
+                metadata=metadata
             )
-            self.collections[provider] = collection
-            logger.info(f"Collection '{collection_name}' ready")
+            # Cache key includes scope and user_id for proper isolation
+            cache_key = f"{provider}_{scope}_{user_id or 'global'}"
+            self.collections[cache_key] = collection
+            logger.info(f"Collection '{collection_name}' ready (scope: {scope}, user: {user_id or 'global'})")
             return collection
 
         except Exception as e:
             logger.error(f"Failed to get/create collection {collection_name}: {e}")
             raise
 
-    def get_collection(self, provider: str = "custom"):
-        """Get collection for specific provider"""
-        if provider not in self.collections:
-            self._get_or_create_collection(provider)
-        return self.collections[provider]
+    def get_collection(self, provider: str = "custom", scope: str = "user", user_id: Optional[int] = None):
+        """Get collection for specific provider, scope, and user"""
+        cache_key = f"{provider}_{scope}_{user_id or 'global'}"
+        if cache_key not in self.collections:
+            self._get_or_create_collection(provider, scope, user_id)
+        return self.collections[cache_key]
 
     async def add_documents(
         self,
         texts: List[str],
         metadatas: List[Dict[str, Any]],
         ids: Optional[List[str]] = None,
-        provider: str = "custom"
+        provider: str = "custom",
+        scope: str = "user",
+        user_id: Optional[int] = None
     ) -> List[str]:
         """
         Add documents to vector store
@@ -76,12 +97,14 @@ class VectorStoreService:
             metadatas: List of metadata dictionaries
             ids: Optional list of IDs
             provider: LLM provider to use for embeddings
+            scope: 'global' or 'user'
+            user_id: User ID (required for user scope)
 
         Returns:
             List of document IDs
         """
         try:
-            collection = self.get_collection(provider)
+            collection = self.get_collection(provider, scope, user_id)
 
             # Generate IDs if not provided
             if ids is None:
@@ -98,7 +121,7 @@ class VectorStoreService:
                 ids=ids
             )
 
-            logger.info(f"Added {len(texts)} documents to {provider} collection")
+            logger.info(f"Added {len(texts)} documents to {provider} collection (scope: {scope}, user: {user_id or 'global'})")
             return ids
 
         except Exception as e:
@@ -110,7 +133,9 @@ class VectorStoreService:
         query: str,
         provider: str = "custom",
         n_results: int = None,
-        filter_metadata: Optional[Dict[str, Any]] = None
+        filter_metadata: Optional[Dict[str, Any]] = None,
+        scope: str = "user",
+        user_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         Perform similarity search
@@ -120,12 +145,14 @@ class VectorStoreService:
             provider: LLM provider to use
             n_results: Number of results to return
             filter_metadata: Optional metadata filter
+            scope: 'global' or 'user'
+            user_id: User ID (required for user scope)
 
         Returns:
             List of results with documents, metadatas, distances
         """
         try:
-            collection = self.get_collection(provider)
+            collection = self.get_collection(provider, scope, user_id)
 
             if n_results is None:
                 n_results = settings.MAX_RETRIEVAL_DOCS
@@ -144,16 +171,10 @@ class VectorStoreService:
             formatted_results = []
             for i in range(len(results['ids'][0])):
                 distance = results['distances'][0][i]
-                # ChromaDB uses squared euclidean distance - normalize to 0-1 range
-                # Lower distance = higher similarity
-                # For practical purposes, distances < 1.0 are very similar
-                if distance < 0:
-                    similarity = 1.0  # Handle edge case
-                elif distance < 1.0:
-                    similarity = 1.0 - distance
-                else:
-                    # Use exponential decay for larger distances
-                    similarity = 1.0 / (1.0 + distance)
+                # ChromaDB uses squared euclidean distance
+                # For high-dimensional embeddings (768-1536 dim), we need calibrated normalization
+                # Typical distance ranges: 0-2 (very similar), 2-10 (relevant), 10-20 (less relevant), >20 (not relevant)
+                similarity = self._calculate_calibrated_similarity(distance)
 
                 formatted_results.append({
                     'id': results['ids'][0][i],
@@ -195,14 +216,135 @@ class VectorStoreService:
             logger.error(f"Similarity search failed: {e}")
             raise
 
+    def _calculate_calibrated_similarity(self, distance: float) -> float:
+        """
+        Calculate calibrated similarity score from squared Euclidean distance.
+        Optimized for high-dimensional embeddings (768-1536 dimensions).
+
+        CONSERVATIVE CALIBRATION: Designed to prevent gibberish/irrelevant queries
+        from receiving artificially high confidence scores.
+
+        ChromaDB returns SQUARED Euclidean distances, resulting in larger values (200-500+).
+        Distance ranges and their typical meanings (based on observed data):
+        - 0.0 - 100.0:   Nearly identical / Very high similarity (0.80 - 1.0)
+        - 100.0 - 200.0: Highly relevant / High similarity (0.60 - 0.80)
+        - 200.0 - 300.0: Moderately relevant / Fair similarity (0.40 - 0.60)
+        - 300.0 - 400.0: Weakly relevant / Low similarity (0.20 - 0.40)
+        - > 400.0:       Irrelevant / Very low similarity (0.0 - 0.20)
+
+        Args:
+            distance: Squared Euclidean distance from ChromaDB
+
+        Returns:
+            Similarity score between 0.0 and 1.0
+        """
+        if distance < 0:
+            return 1.0  # Handle edge case
+
+        # CONSERVATIVE piecewise linear mapping - much stricter than previous version
+        # This prevents gibberish queries from getting high confidence scores
+        if distance <= 100.0:
+            # Very similar: map [0, 100] -> [1.0, 0.80]
+            return 1.0 - (distance / 100.0) * 0.20
+        elif distance <= 200.0:
+            # Highly relevant: map [100, 200] -> [0.80, 0.60]
+            return 0.80 - ((distance - 100.0) / 100.0) * 0.20
+        elif distance <= 300.0:
+            # Moderately relevant: map [200, 300] -> [0.60, 0.40]
+            return 0.60 - ((distance - 200.0) / 100.0) * 0.20
+        elif distance <= 400.0:
+            # Weakly relevant: map [300, 400] -> [0.40, 0.20]
+            return 0.40 - ((distance - 300.0) / 100.0) * 0.20
+        else:
+            # Irrelevant: exponential decay for distances > 400
+            # map [400, infinity] -> [0.20, 0.0]
+            # Much steeper decay to ensure gibberish gets very low scores
+            return max(0.0, 0.20 * math.exp(-(distance - 400.0) / 100.0))
+
+    async def search_multiple_collections(
+        self,
+        query: str,
+        provider: str = "custom",
+        user_id: Optional[int] = None,
+        n_results: int = None,
+        filter_metadata: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Search both global and user collections, merge and rank results
+
+        Args:
+            query: Query text
+            provider: LLM provider to use
+            user_id: User ID for user-specific collection
+            n_results: Total number of results to return
+            filter_metadata: Optional metadata filter
+
+        Returns:
+            Merged and sorted list of results
+        """
+        try:
+            if n_results is None:
+                n_results = settings.MAX_RETRIEVAL_DOCS
+
+            # Search global collection
+            global_results = []
+            try:
+                global_results = await self.similarity_search(
+                    query=query,
+                    provider=provider,
+                    n_results=n_results,
+                    filter_metadata=filter_metadata,
+                    scope="global",
+                    user_id=None
+                )
+                logger.info(f"Found {len(global_results)} results in global collection")
+            except Exception as e:
+                logger.warning(f"Global collection search failed (may not exist yet): {e}")
+
+            # Search user collection if user_id provided
+            user_results = []
+            if user_id:
+                try:
+                    user_results = await self.similarity_search(
+                        query=query,
+                        provider=provider,
+                        n_results=n_results,
+                        filter_metadata=filter_metadata,
+                        scope="user",
+                        user_id=user_id
+                    )
+                    logger.info(f"Found {len(user_results)} results in user collection")
+                except Exception as e:
+                    logger.warning(f"User collection search failed (may not exist yet): {e}")
+
+            # Merge results
+            all_results = global_results + user_results
+
+            if not all_results:
+                return []
+
+            # Sort by similarity (highest first) and take top n_results
+            all_results.sort(key=lambda x: x['similarity'], reverse=True)
+            merged_results = all_results[:n_results]
+
+            logger.info(f"Merged results: {len(merged_results)} total (from {len(global_results)} global + {len(user_results)} user)")
+
+            return merged_results
+
+        except Exception as e:
+            logger.error(f"Multi-collection search failed: {e}")
+            return []
+
     async def get_document_by_id(
         self,
         doc_id: str,
-        provider: str = "custom"
+        provider: str = "custom",
+        scope: str = "user",
+        user_id: Optional[int] = None
     ) -> Optional[Dict[str, Any]]:
         """Get document by ID"""
         try:
-            collection = self.get_collection(provider)
+            collection = self.get_collection(provider, scope, user_id)
             result = collection.get(ids=[doc_id])
 
             if result['ids']:
@@ -220,13 +362,15 @@ class VectorStoreService:
     async def delete_documents(
         self,
         ids: List[str],
-        provider: str = "custom"
+        provider: str = "custom",
+        scope: str = "user",
+        user_id: Optional[int] = None
     ) -> bool:
         """Delete documents by IDs"""
         try:
-            collection = self.get_collection(provider)
+            collection = self.get_collection(provider, scope, user_id)
             collection.delete(ids=ids)
-            logger.info(f"Deleted {len(ids)} documents from {provider} collection")
+            logger.info(f"Deleted {len(ids)} documents from {provider} collection (scope: {scope}, user: {user_id or 'global'})")
             return True
 
         except Exception as e:
@@ -236,30 +380,34 @@ class VectorStoreService:
     async def delete_by_metadata(
         self,
         filter_metadata: Dict[str, Any],
-        provider: str = "custom"
+        provider: str = "custom",
+        scope: str = "user",
+        user_id: Optional[int] = None
     ) -> bool:
         """Delete documents by metadata filter"""
         try:
-            collection = self.get_collection(provider)
+            collection = self.get_collection(provider, scope, user_id)
             collection.delete(where=filter_metadata)
-            logger.info(f"Deleted documents matching {filter_metadata} from {provider} collection")
+            logger.info(f"Deleted documents matching {filter_metadata} from {provider} collection (scope: {scope}, user: {user_id or 'global'})")
             return True
 
         except Exception as e:
             logger.error(f"Failed to delete documents by metadata: {e}")
             return False
 
-    def get_collection_stats(self, provider: str = "custom") -> Dict[str, Any]:
+    def get_collection_stats(self, provider: str = "custom", scope: str = "user", user_id: Optional[int] = None) -> Dict[str, Any]:
         """Get collection statistics"""
         try:
-            collection = self.get_collection(provider)
+            collection = self.get_collection(provider, scope, user_id)
             count = collection.count()
 
             return {
                 "provider": provider,
                 "collection_name": collection.name,
                 "document_count": count,
-                "metadata": collection.metadata
+                "metadata": collection.metadata,
+                "scope": scope,
+                "user_id": user_id
             }
 
         except Exception as e:

@@ -9,9 +9,10 @@ from passlib.context import CryptContext
 
 from app.config import settings
 from app.database.models import Base, User, Role, Permission, user_roles, role_permissions
+import argon2
 
 # Password hashing context (to avoid circular import)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # Create engine
 engine = create_engine(

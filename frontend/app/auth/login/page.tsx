@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { Brain, ArrowRight } from 'lucide-react'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -33,8 +35,28 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 z-50">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push('/')}>
+            <Brain className="h-8 w-8 text-blue-600" />
+            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              AI RAG Platform
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <Button variant="ghost" onClick={() => router.push('/auth/register')}>
+              Register
+            </Button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Login Form */}
+      <div className="flex items-center justify-center min-h-screen p-4 pt-24">
+        <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Login</CardTitle>
           <CardDescription>
@@ -90,6 +112,7 @@ export default function LoginPage() {
           </CardFooter>
         </form>
       </Card>
+      </div>
     </div>
   )
 }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { Brain, FileText, MessageSquare, Settings, Users, BarChart3, LogOut, Code } from 'lucide-react'
 import { authAPI } from '@/lib/api'
 
@@ -106,9 +107,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
-      <div className="bg-white border-b shadow-sm">
+      <div className="bg-white dark:bg-gray-950 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-primary">RAG & Multi-Agent System</h1>
@@ -119,6 +120,7 @@ export default function DashboardPage() {
               <p className="font-medium">{user?.full_name || user?.username}</p>
               <p className="text-sm text-muted-foreground capitalize">{user?.roles.join(', ')}</p>
             </div>
+            <ThemeToggle />
             <Button variant="outline" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4 mr-2" />
               Logout

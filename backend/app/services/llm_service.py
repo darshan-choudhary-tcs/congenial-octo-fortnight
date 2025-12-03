@@ -117,7 +117,7 @@ class LLMService:
         **kwargs
     ) -> str:
         """
-        Invoke LLM with retry logic
+        Invoke LLM with retry logic (legacy method - returns only content)
 
         Args:
             prompt: User prompt
@@ -127,6 +127,29 @@ class LLMService:
 
         Returns:
             LLM response as string
+        """
+        result = await self.generate_response(prompt, provider, system_message, **kwargs)
+        return result["content"]
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    async def generate_response(
+        self,
+        prompt: str,
+        provider: str = "custom",
+        system_message: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate LLM response with token usage tracking
+
+        Args:
+            prompt: User prompt
+            provider: LLM provider to use
+            system_message: Optional system message
+            **kwargs: Additional arguments for LLM
+
+        Returns:
+            Dictionary with 'content' and 'token_usage' keys
         """
         try:
             llm = self.get_llm(provider)
@@ -147,13 +170,73 @@ class LLMService:
 
             # Extract content from response
             if hasattr(response, 'content'):
-                return response.content
+                content = response.content
             else:
-                return str(response)
+                content = str(response)
+
+            # Extract token usage from response metadata
+            token_usage = self._extract_token_usage(response, provider, prompt, content)
+
+            return {
+                "content": content,
+                "token_usage": token_usage
+            }
 
         except Exception as e:
             logger.error(f"LLM invocation failed: {e}")
             raise
+
+    def _extract_token_usage(
+        self,
+        response: Any,
+        provider: str,
+        prompt: str,
+        content: str
+    ) -> Dict[str, Any]:
+        """
+        Extract token usage from LLM response
+
+        Args:
+            response: Raw LLM response object
+            provider: Provider used (custom or ollama)
+            prompt: Input prompt (for estimation)
+            content: Response content (for estimation)
+
+        Returns:
+            Dictionary with token usage information
+        """
+        token_usage = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+        }
+
+        try:
+            # For ChatOpenAI (custom provider), extract from response_metadata
+            if hasattr(response, 'response_metadata') and response.response_metadata:
+                metadata = response.response_metadata
+                if 'token_usage' in metadata:
+                    usage = metadata['token_usage']
+                    token_usage["prompt_tokens"] = usage.get('prompt_tokens', 0)
+                    token_usage["completion_tokens"] = usage.get('completion_tokens', 0)
+                    token_usage["total_tokens"] = usage.get('total_tokens', 0)
+                    logger.debug(f"Extracted token usage from metadata: {token_usage}")
+                    return token_usage
+
+            # For Ollama or if metadata not available, estimate tokens
+            # Using rough estimation: ~4 characters per token
+            if provider == "ollama" or token_usage["total_tokens"] == 0:
+                estimated_prompt = len(prompt) // 4
+                estimated_completion = len(content) // 4
+                token_usage["prompt_tokens"] = estimated_prompt
+                token_usage["completion_tokens"] = estimated_completion
+                token_usage["total_tokens"] = estimated_prompt + estimated_completion
+                logger.debug(f"Estimated token usage for {provider}: {token_usage}")
+
+        except Exception as e:
+            logger.warning(f"Could not extract token usage: {e}")
+
+        return token_usage
 
     async def get_embeddings_for_text(
         self,
@@ -161,7 +244,7 @@ class LLMService:
         provider: str = "custom"
     ) -> List[float]:
         """
-        Get embeddings for text
+        Get embeddings for text (legacy method - returns only embeddings)
 
         Args:
             text: Text to embed
@@ -169,6 +252,24 @@ class LLMService:
 
         Returns:
             List of embedding values
+        """
+        result = await self.generate_embeddings(text, provider)
+        return result["embeddings"]
+
+    async def generate_embeddings(
+        self,
+        text: str,
+        provider: str = "custom"
+    ) -> Dict[str, Any]:
+        """
+        Generate embeddings with token usage tracking
+
+        Args:
+            text: Text to embed
+            provider: Embeddings provider to use
+
+        Returns:
+            Dictionary with 'embeddings' and 'token_usage' keys
         """
         try:
             # For Ollama, use direct HTTP API for consistency with document embeddings
@@ -186,14 +287,34 @@ class LLMService:
                     result = response.json()
                     embedding_vector = result.get("embedding", [])
                     logger.info(f"Generated query embedding via direct HTTP (dim: {len(embedding_vector)})")
-                    return embedding_vector
+
+                    # Estimate embedding tokens (rough approximation)
+                    embedding_tokens = len(text) // 4
+
+                    return {
+                        "embeddings": embedding_vector,
+                        "token_usage": {
+                            "embedding_tokens": embedding_tokens,
+                            "total_tokens": embedding_tokens
+                        }
+                    }
                 else:
                     raise Exception(f"HTTP {response.status_code}: {response.text}")
             else:
                 # Use LangChain for custom provider
                 embeddings = self.get_embeddings(provider)
                 embedding_vector = embeddings.embed_query(text)
-                return embedding_vector
+
+                # Estimate embedding tokens
+                embedding_tokens = len(text) // 4
+
+                return {
+                    "embeddings": embedding_vector,
+                    "token_usage": {
+                        "embedding_tokens": embedding_tokens,
+                        "total_tokens": embedding_tokens
+                    }
+                }
 
         except Exception as e:
             logger.error(f"Embedding generation failed: {e}")

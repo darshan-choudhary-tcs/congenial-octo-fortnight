@@ -49,13 +49,14 @@ class ResearchAgent(BaseAgent):
             description="Specialized in retrieving and analyzing relevant information from documents"
         )
 
-    async def execute(self, input_data: Dict[str, Any], provider: str = "custom") -> Dict[str, Any]:
+    async def execute(self, input_data: Dict[str, Any], provider: str = "custom", user_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Execute research task
 
         Args:
             input_data: Should contain 'query' and optional 'filters'
             provider: LLM provider
+            user_id: User ID for multi-tenant search
 
         Returns:
             Research results with retrieved documents and analysis
@@ -68,11 +69,12 @@ class ResearchAgent(BaseAgent):
 
             logger.info(f"[{self.name}] Researching: {query} (provider: {provider})")
 
-            # Retrieve relevant documents
+            # Retrieve relevant documents (searches both global and user collections)
             retrieved_docs = await rag_retriever.retrieve_relevant_documents(
                 query=query,
                 provider=provider,
-                filter_metadata=filters
+                filter_metadata=filters,
+                user_id=user_id
             )
 
             if not retrieved_docs:
@@ -188,7 +190,6 @@ Provide:
 1. Key insights and patterns
 2. Important relationships or connections
 3. Recommendations or conclusions
-4. Confidence level in your analysis
 
 Analysis:""",
 
@@ -219,11 +220,13 @@ Analysis:"""
 
             prompt = analysis_prompts.get(analysis_type, analysis_prompts['general'])
 
-            analysis = await llm_service.invoke_llm(
+            analysis_data = await llm_service.generate_response(
                 prompt=prompt,
                 provider=provider,
                 system_message="You are an expert data analyst skilled at finding patterns and generating actionable insights."
             )
+            analysis = analysis_data["content"]
+            token_usage = analysis_data["token_usage"]
 
             result = {
                 'status': 'completed',
@@ -232,7 +235,8 @@ Analysis:"""
                 'analysis_type': analysis_type,
                 'confidence': 0.85,  # Can be calculated based on data quality
                 'reasoning': f"Performed {analysis_type} analysis on provided data",
-                'execution_time': (datetime.utcnow() - start_time).total_seconds()
+                'execution_time': (datetime.utcnow() - start_time).total_seconds(),
+                'token_usage': token_usage
             }
 
             self.add_to_memory({
@@ -315,7 +319,7 @@ Process: {process}
 Explain:
 1. What sources were used and why
 2. How the information was synthesized
-3. Confidence level and reasoning
+3. Reasoning
 4. Any limitations or uncertainties"""
 
             else:  # debug
@@ -337,11 +341,13 @@ Provide:
 6. Grounding verification results
 7. Recommendations for improving confidence"""
 
-            explanation = await llm_service.invoke_llm(
+            explanation_data = await llm_service.generate_response(
                 prompt=explanation_prompt,
                 provider=provider,
                 system_message="You are an AI transparency expert. Provide clear, honest explanations of AI decision-making processes."
             )
+            explanation = explanation_data["content"]
+            token_usage = explanation_data["token_usage"]
 
             # Generate reasoning chain
             reasoning_chain = self._generate_reasoning_chain(sources, response)
@@ -353,7 +359,8 @@ Provide:
                 'reasoning_chain': reasoning_chain,
                 'explainability_level': explainability_level,
                 'confidence': self._calculate_explanation_confidence(sources),
-                'execution_time': (datetime.utcnow() - start_time).total_seconds()
+                'execution_time': (datetime.utcnow() - start_time).total_seconds(),
+                'token_usage': token_usage
             }
 
             logger.info(f"[{self.name}] Explanation generated")
@@ -467,7 +474,8 @@ class GroundingAgent(BaseAgent):
                 'verification_details': verification['verification_details'],
                 'confidence': verification['grounding_score'],
                 'reasoning': f"Grounding score: {verification['grounding_score']:.2f}",
-                'execution_time': (datetime.utcnow() - start_time).total_seconds()
+                'execution_time': (datetime.utcnow() - start_time).total_seconds(),
+                'token_usage': verification.get('token_usage', {})
             }
 
             logger.info(f"[{self.name}] Grounding verification completed (score: {verification['grounding_score']:.2f})")

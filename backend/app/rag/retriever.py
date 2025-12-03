@@ -8,6 +8,7 @@ from datetime import datetime
 from app.services.llm_service import llm_service
 from app.services.vector_store import vector_store_service
 from app.config import settings
+from app.rag.query_validator import query_validator
 
 class RAGRetriever:
     """Retrieval Augmented Generation with source attribution and grounding"""
@@ -17,39 +18,52 @@ class RAGRetriever:
         query: str,
         provider: str = "custom",
         n_results: int = None,
-        filter_metadata: Optional[Dict[str, Any]] = None
+        filter_metadata: Optional[Dict[str, Any]] = None,
+        user_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
-        Retrieve relevant documents for a query
+        Retrieve relevant documents for a query from both global and user collections
 
         Args:
             query: User query
             provider: LLM provider for embeddings
             n_results: Number of results
             filter_metadata: Metadata filter
+            user_id: User ID for user-specific collection search
 
         Returns:
-            List of relevant documents with metadata
+            List of relevant documents with metadata (includes query_quality in metadata)
         """
         try:
             if n_results is None:
                 n_results = settings.MAX_RETRIEVAL_DOCS
 
-            results = await vector_store_service.similarity_search(
+            # Validate query quality to detect gibberish
+            query_quality = query_validator.validate_query(query)
+            logger.info(f"Query quality: {query_quality['quality_score']:.2f}, Valid: {query_quality['is_valid']}")
+
+            # Search both global and user collections
+            results = await vector_store_service.search_multiple_collections(
                 query=query,
                 provider=provider,
+                user_id=user_id,
                 n_results=n_results,
                 filter_metadata=filter_metadata
             )
+
+            # Attach query quality information to each result for later use
+            for result in results:
+                result['query_quality'] = query_quality
 
             # Fallback: If no results found, try the other provider
             if not results:
                 other_provider = "ollama" if provider == "custom" else "custom"
                 logger.info(f"No results from {provider}, trying {other_provider} provider...")
                 try:
-                    results = await vector_store_service.similarity_search(
+                    results = await vector_store_service.search_multiple_collections(
                         query=query,
                         provider=other_provider,
+                        user_id=user_id,
                         n_results=n_results,
                         filter_metadata=filter_metadata
                     )
@@ -115,8 +129,8 @@ class RAGRetriever:
             # Build system message based on explainability level
             system_messages = {
                 "basic": "You are a helpful AI assistant. Answer the user's question based on the provided context. Be concise and accurate.",
-                "detailed": "You are a helpful AI assistant. Answer the user's question based on the provided context. Include reasoning and cite sources using [Source N] format. Explain your confidence level.",
-                "debug": "You are a helpful AI assistant. Answer the user's question based on the provided context. Provide detailed reasoning, cite all sources using [Source N] format, explain your confidence level, note any assumptions, and highlight potential limitations or uncertainties."
+                "detailed": "You are a helpful AI assistant. Answer the user's question based on the provided context. Include reasoning and cite sources using [Source N] format.",
+                "debug": "You are a helpful AI assistant. Answer the user's question based on the provided context. Provide detailed reasoning, cite all sources using [Source N] format, note any assumptions, and highlight potential limitations or uncertainties."
             }
 
             system_message = system_messages.get(explainability_level, system_messages["detailed"])
@@ -145,19 +159,28 @@ Answer:"""
 
             # Generate response
             start_time = datetime.utcnow()
-            response_text = await llm_service.invoke_llm(
+            response_data = await llm_service.generate_response(
                 prompt=prompt,
                 provider=provider,
                 system_message=system_message
             )
+            response_text = response_data["content"]
+            token_usage = response_data["token_usage"]
             end_time = datetime.utcnow()
 
-            # Calculate confidence score based on similarity scores
+            # Calculate base similarity score
             avg_similarity = sum(doc['similarity'] for doc in retrieved_docs) / len(retrieved_docs) if retrieved_docs else 0.0
-            confidence_score = min(0.95, avg_similarity)  # Cap at 0.95
 
             # Extract grounding evidence (source citations in response)
             grounding_evidence = self._extract_source_citations(response_text, sources)
+
+            # Calculate multi-factor confidence score
+            confidence_score = self._calculate_confidence_score(
+                avg_similarity=avg_similarity,
+                retrieved_docs=retrieved_docs,
+                grounding_evidence=grounding_evidence,
+                response_text=response_text
+            )
 
             result = {
                 'response': response_text,
@@ -168,10 +191,11 @@ Answer:"""
                 'grounding_evidence': grounding_evidence,
                 'generation_time': (end_time - start_time).total_seconds(),
                 'provider': provider,
-                'explainability_level': explainability_level
+                'explainability_level': explainability_level,
+                'token_usage': token_usage
             }
 
-            logger.info(f"Generated response with {len(sources)} sources (confidence: {confidence_score:.2f})")
+            logger.info(f"Generated response with {len(sources)} sources (confidence: {confidence_score:.2f}, tokens: {token_usage['total_tokens']})")
 
             return result
 
@@ -200,6 +224,90 @@ Answer:"""
                 })
 
         return grounding_evidence
+
+    def _calculate_confidence_score(
+        self,
+        avg_similarity: float,
+        retrieved_docs: List[Dict[str, Any]],
+        grounding_evidence: List[Dict[str, Any]],
+        response_text: str
+    ) -> float:
+        """
+        Calculate multi-factor confidence score combining:
+        - Similarity scores (60%) - Primary signal from vector search quality
+        - Source citation quality (20%) - Whether sources were effectively used
+        - Response grounding indicators (10%) - Strong uncertainty detection
+        - Query quality (10%) - Penalizes gibberish/meaningless queries
+
+        Args:
+            avg_similarity: Average similarity from vector search
+            retrieved_docs: Retrieved documents with metadata
+            grounding_evidence: Extracted source citations
+            response_text: Generated response text
+
+        Returns:
+            Confidence score between 0.0 and 1.0
+        """
+        # Factor 1: Similarity Score (60% weight) - Primary indicator of retrieval quality
+        # Already calibrated by the new conservative vector store similarity calculation
+        similarity_score = avg_similarity
+
+        # Factor 2: Source Citation Quality (20% weight)
+        # How many sources were actually cited vs retrieved?
+        # Conservative scoring to prevent false confidence
+        if retrieved_docs:
+            citation_ratio = len(grounding_evidence) / len(retrieved_docs)
+            # Less generous than before - require good citation ratio
+            citation_diversity = min(0.2, len(grounding_evidence) * 0.05)
+            # Base score of 0.6 if any citations exist, 0.2 if none
+            base_citation = 0.6 if len(grounding_evidence) > 0 else 0.2
+            citation_score = min(1.0, base_citation + citation_ratio * 0.3 + citation_diversity)
+        else:
+            citation_score = 0.3  # Lower neutral score if no docs retrieved
+
+        # Factor 3: Response Grounding Indicators (10% weight)
+        # Check for strong uncertainty indicators that should lower confidence
+        uncertainty_phrases = [
+            "i don't have enough information",
+            "the context doesn't contain",
+            "i cannot find",
+            "unable to determine",
+            "no information is provided",
+            "cannot answer",
+            "not enough context"
+        ]
+        response_lower = response_text.lower()
+        uncertainty_penalty = sum(1 for phrase in uncertainty_phrases if phrase in response_lower)
+        # Apply stronger penalties for uncertainty
+        grounding_score = max(0.3, 1.0 - (uncertainty_penalty * 0.3))
+
+        # Factor 4: Query Quality (10% weight) - NEW: Penalizes gibberish queries
+        query_quality_score = 1.0  # Default to high quality
+        if retrieved_docs and len(retrieved_docs) > 0:
+            # Extract query quality from first document (all have same quality)
+            query_quality = retrieved_docs[0].get('query_quality', {})
+            query_quality_score = query_quality.get('quality_score', 1.0)
+
+            if query_quality_score < 0.5:
+                logger.warning(f"Low query quality detected: {query_quality_score:.2f}, Issues: {query_quality.get('issues', [])}")
+
+        # Weighted combination (60% similarity + 20% citation + 10% grounding + 10% query quality)
+        final_confidence = (
+            similarity_score * 0.60 +
+            citation_score * 0.20 +
+            grounding_score * 0.10 +
+            query_quality_score * 0.10
+        )
+
+        # Log detailed breakdown for debugging
+        logger.info(f"Confidence breakdown: similarity={similarity_score:.3f} (60%), citation={citation_score:.3f} (20%), grounding={grounding_score:.3f} (10%), query_quality={query_quality_score:.3f} (10%) → final={final_confidence:.3f}")
+        logger.info(f"  - Citations: {len(grounding_evidence)}/{len(retrieved_docs)} sources cited")
+        logger.info(f"  - Uncertainty penalties: {uncertainty_penalty}")
+
+        # Ensure score is between 0.0 and 1.0
+        final_confidence = max(0.0, min(1.0, final_confidence))
+
+        return final_confidence
 
     async def verify_grounding(
         self,
@@ -240,11 +348,13 @@ Unsupported Claims: [list]
 Grounding Score: [0.0-1.0]
 Explanation: [brief explanation]"""
 
-            verification_result = await llm_service.invoke_llm(
+            verification_data = await llm_service.generate_response(
                 prompt=verification_prompt,
                 provider=provider,
                 system_message="You are a precise fact-checking assistant."
             )
+            verification_result = verification_data["content"]
+            token_usage = verification_data["token_usage"]
 
             # Parse grounding score (simple extraction)
             grounding_score = 0.8  # Default
@@ -259,7 +369,8 @@ Explanation: [brief explanation]"""
             return {
                 'is_grounded': grounding_score >= 0.7,
                 'grounding_score': grounding_score,
-                'verification_details': verification_result
+                'verification_details': verification_result,
+                'token_usage': token_usage
             }
 
         except Exception as e:

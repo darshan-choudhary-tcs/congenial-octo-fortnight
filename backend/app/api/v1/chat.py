@@ -2,17 +2,40 @@
 Chat API endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, AsyncGenerator
 from loguru import logger
+import json
+import asyncio
 
 from app.database.db import get_db
-from app.database.models import User, Conversation, Message, AgentLog
+from app.database.models import User, Conversation, Message, AgentLog, TokenUsage
 from app.auth.security import get_current_active_user, require_permission
 from app.agents.orchestrator import orchestrator
+from app.config import settings
 
 router = APIRouter()
+
+# Token pricing configuration (per 1M tokens)
+TOKEN_PRICING = {
+    "custom": {
+        "prompt": 0.14,  # DeepSeek pricing: $0.14 per 1M prompt tokens
+        "completion": 0.28  # DeepSeek pricing: $0.28 per 1M completion tokens
+    },
+    "ollama": {
+        "prompt": 0.0,  # Local model - free
+        "completion": 0.0
+    }
+}
+
+def _calculate_token_cost(provider: str, prompt_tokens: int, completion_tokens: int) -> float:
+    """Calculate the estimated cost for token usage"""
+    pricing = TOKEN_PRICING.get(provider, TOKEN_PRICING["custom"])
+    prompt_cost = (prompt_tokens / 1_000_000) * pricing["prompt"]
+    completion_cost = (completion_tokens / 1_000_000) * pricing["completion"]
+    return round(prompt_cost + completion_cost, 6)
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
@@ -26,6 +49,7 @@ class ChatResponse(BaseModel):
     response: str
     sources: List[Dict[str, Any]] = []
     confidence_score: float
+    low_confidence_warning: bool = False
     grounding: Optional[Dict[str, Any]] = None
     explanation: Optional[str] = None
     reasoning_chain: List[Dict[str, Any]] = []
@@ -89,12 +113,13 @@ async def send_message(
         db.add(user_message)
         db.flush()
 
-        # Execute RAG with agents
+        # Execute RAG with agents (searches both global and user-specific documents)
         result = await orchestrator.execute_rag_with_agents(
             query=chat_request.message,
             provider=provider,
             explainability_level=current_user.explainability_level,
-            include_grounding=chat_request.include_grounding
+            include_grounding=chat_request.include_grounding,
+            user_id=current_user.id
         )
 
         # Save assistant message
@@ -110,6 +135,7 @@ async def send_message(
                 } for src in result.get('sources', [])
             ],
             confidence_score=result.get('confidence_score', 0.0),
+            low_confidence_warning=result.get('low_confidence_warning', False),
             reasoning_chain=result.get('reasoning_chain', []),
             sources=result.get('sources', []),
             grounding_evidence=result.get('grounding'),
@@ -134,6 +160,40 @@ async def send_message(
             )
             db.add(agent_log)
 
+        db.flush()
+
+        # Save token usage records
+        token_usage_data = result.get('token_usage', {})
+        if token_usage_data and token_usage_data.get('operations'):
+            # Get model name based on provider
+            model_name = settings.CUSTOM_LLM_MODEL if provider == "custom" else settings.OLLAMA_MODEL
+
+            for operation in token_usage_data['operations']:
+                op_tokens = operation.get('token_usage', {})
+                if op_tokens.get('total_tokens', 0) > 0:
+                    # Calculate cost (placeholder - adjust based on actual pricing)
+                    cost = _calculate_token_cost(
+                        provider=provider,
+                        prompt_tokens=op_tokens.get('prompt_tokens', 0),
+                        completion_tokens=op_tokens.get('completion_tokens', 0)
+                    )
+
+                    token_usage = TokenUsage(
+                        user_id=current_user.id,
+                        conversation_id=conversation.id,
+                        message_id=assistant_message.id,
+                        provider=provider,
+                        model=model_name,
+                        operation_type=operation['operation'],
+                        prompt_tokens=op_tokens.get('prompt_tokens', 0),
+                        completion_tokens=op_tokens.get('completion_tokens', 0),
+                        total_tokens=op_tokens.get('total_tokens', 0),
+                        embedding_tokens=op_tokens.get('embedding_tokens', 0),
+                        estimated_cost=cost,
+                        currency="USD"
+                    )
+                    db.add(token_usage)
+
         db.commit()
 
         logger.info(f"Chat message processed for user {current_user.username}")
@@ -144,6 +204,7 @@ async def send_message(
             response=result.get('response', ''),
             sources=result.get('sources', []),
             confidence_score=result.get('confidence_score', 0.0),
+            low_confidence_warning=result.get('low_confidence_warning', False),
             grounding=result.get('grounding'),
             explanation=result.get('explanation'),
             reasoning_chain=result.get('reasoning_chain', []),
@@ -211,6 +272,7 @@ async def get_conversation_messages(
             'content': msg.content,
             'sources': msg.sources if msg.role == 'assistant' else None,
             'confidence_score': msg.confidence_score,
+            'low_confidence_warning': msg.low_confidence_warning if msg.role == 'assistant' else False,
             'created_at': msg.created_at.isoformat()
         }
         for msg in messages
@@ -239,3 +301,179 @@ async def delete_conversation(
     db.commit()
 
     return {"message": "Conversation deleted successfully"}
+
+@router.post("/message/stream")
+async def send_message_stream(
+    chat_request: ChatRequest,
+    current_user: User = Depends(require_permission("chat:use")),
+    db: Session = Depends(get_db)
+):
+    """Send a message and get AI response via Server-Sent Events (SSE)"""
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        """Generate SSE events as agents execute"""
+        conversation = None
+        user_message = None
+        assistant_message_data = {}
+        agent_logs_data = []
+
+        try:
+            # Validate provider
+            if chat_request.provider not in ["custom", "ollama"]:
+                yield f"event: error\ndata: {json.dumps({'error': 'Provider must be custom or ollama'})}\n\n"
+                return
+
+            provider = chat_request.provider or current_user.preferred_llm
+
+            # Send initial status
+            yield f"event: status\ndata: {json.dumps({'status': 'initializing', 'message': 'Setting up conversation...'})}\n\n"
+            await asyncio.sleep(0.01)  # Allow event to flush
+
+            # Get or create conversation
+            if chat_request.conversation_id:
+                conversation = db.query(Conversation).filter(
+                    Conversation.uuid == chat_request.conversation_id,
+                    Conversation.user_id == current_user.id
+                ).first()
+                if not conversation:
+                    yield f"event: error\ndata: {json.dumps({'error': 'Conversation not found'})}\n\n"
+                    return
+            else:
+                conversation = Conversation(
+                    title=chat_request.message[:50] + "..." if len(chat_request.message) > 50 else chat_request.message,
+                    user_id=current_user.id,
+                    llm_provider=provider,
+                    llm_model=f"{provider}_model"
+                )
+                db.add(conversation)
+                db.flush()
+
+            # Save user message
+            user_message = Message(
+                conversation_id=conversation.id,
+                role="user",
+                content=chat_request.message
+            )
+            db.add(user_message)
+            db.flush()
+
+            yield f"event: conversation\ndata: {json.dumps({'conversation_id': conversation.uuid})}\n\n"
+            await asyncio.sleep(0.01)
+
+            # Execute RAG with streaming agent status (searches both global and user documents)
+            async for event in orchestrator.execute_rag_with_agents_stream(
+                query=chat_request.message,
+                provider=provider,
+                explainability_level=current_user.explainability_level,
+                include_grounding=chat_request.include_grounding,
+                user_id=current_user.id
+            ):
+                event_type = event.get('type', 'status')
+                event_data = event.get('data', {})
+
+                # Store final result data for database
+                if event_type == 'complete':
+                    assistant_message_data = event_data
+                elif event_type == 'agent_log':
+                    agent_logs_data.append(event_data)
+
+                # Send event to client
+                yield f"event: {event_type}\ndata: {json.dumps(event_data)}\n\n"
+                await asyncio.sleep(0.01)
+
+            # Save assistant message to database
+            if assistant_message_data:
+                assistant_message = Message(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=assistant_message_data.get('response', ''),
+                    retrieved_documents=[
+                        {
+                            'id': src.get('id', ''),
+                            'content': src.get('content', ''),
+                            'similarity': src.get('similarity', 0.0)
+                        } for src in assistant_message_data.get('sources', [])
+                    ],
+                    confidence_score=assistant_message_data.get('confidence_score', 0.0),
+                    low_confidence_warning=assistant_message_data.get('low_confidence_warning', False),
+                    reasoning_chain=assistant_message_data.get('reasoning_chain', []),
+                    sources=assistant_message_data.get('sources', []),
+                    grounding_evidence=assistant_message_data.get('grounding'),
+                    agents_involved=assistant_message_data.get('agents_involved', [])
+                )
+                db.add(assistant_message)
+                db.flush()
+
+                # Save agent logs
+                for log_entry in agent_logs_data:
+                    agent_log = AgentLog(
+                        message_id=assistant_message.id,
+                        agent_name=log_entry.get('agent', ''),
+                        agent_type=log_entry.get('agent', '').lower().replace('agent', ''),
+                        action=log_entry.get('action', ''),
+                        input_data={'query': chat_request.message},
+                        output_data=log_entry.get('result', {}),
+                        execution_time=log_entry.get('result', {}).get('execution_time', 0),
+                        status='success' if log_entry.get('result', {}).get('status') == 'completed' else 'failed',
+                        reasoning=log_entry.get('result', {}).get('reasoning', ''),
+                        confidence=log_entry.get('result', {}).get('confidence', 0.0)
+                    )
+                    db.add(agent_log)
+
+                db.flush()
+
+                # Save token usage records from streaming response
+                token_usage_data = assistant_message_data.get('token_usage', {})
+                if token_usage_data and token_usage_data.get('operations'):
+                    # Get model name based on provider
+                    model_name = settings.CUSTOM_LLM_MODEL if provider == "custom" else settings.OLLAMA_MODEL
+
+                    for operation in token_usage_data['operations']:
+                        op_tokens = operation.get('token_usage', {})
+                        if op_tokens.get('total_tokens', 0) > 0:
+                            # Calculate cost
+                            cost = _calculate_token_cost(
+                                provider=provider,
+                                prompt_tokens=op_tokens.get('prompt_tokens', 0),
+                                completion_tokens=op_tokens.get('completion_tokens', 0)
+                            )
+
+                            token_usage = TokenUsage(
+                                user_id=current_user.id,
+                                conversation_id=conversation.id,
+                                message_id=assistant_message.id,
+                                provider=provider,
+                                model=model_name,
+                                operation_type=operation['operation'],
+                                prompt_tokens=op_tokens.get('prompt_tokens', 0),
+                                completion_tokens=op_tokens.get('completion_tokens', 0),
+                                total_tokens=op_tokens.get('total_tokens', 0),
+                                embedding_tokens=op_tokens.get('embedding_tokens', 0),
+                                estimated_cost=cost,
+                                currency="USD"
+                            )
+                            db.add(token_usage)
+
+                db.commit()
+
+                # Send final message_id
+                yield f"event: saved\ndata: {json.dumps({'message_id': assistant_message.uuid})}\n\n"
+
+            yield f"event: done\ndata: {json.dumps({'status': 'completed'})}\n\n"
+            logger.info(f"SSE chat stream completed for user {current_user.username}")
+
+        except Exception as e:
+            logger.error(f"SSE chat stream failed: {e}")
+            if conversation:
+                db.rollback()
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable buffering in nginx
+        }
+    )

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = ["http://localhost:3000"]
 
     # Database
-    DATABASE_URL: str = "sqlite:///./rag_agents.db"
+    DATABASE_URL: str = "sqlite:///./data/data_store.db"
 
     # JWT
     SECRET_KEY: str = "your-secret-key-change-in-production"
