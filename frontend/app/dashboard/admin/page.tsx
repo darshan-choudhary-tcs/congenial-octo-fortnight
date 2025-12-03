@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Users, Shield, Activity, Loader2, UserPlus, Edit, Trash2, Home, Settings } from 'lucide-react'
@@ -44,6 +45,39 @@ interface SystemStats {
   avg_confidence_score: number
 }
 
+interface LLMConfig {
+  llm: {
+    custom_base_url: string
+    custom_model: string
+    custom_api_key: string
+    custom_embedding_model: string
+    ollama_base_url: string
+    ollama_model: string
+    ollama_embedding_model: string
+  }
+  agent: {
+    temperature: number
+    max_iterations: number
+    enable_memory: boolean
+  }
+  rag: {
+    chunk_size: number
+    chunk_overlap: number
+    max_retrieval_docs: number
+    similarity_threshold: number
+  }
+  explainability: {
+    explainability_level: string
+    enable_confidence_scoring: boolean
+    enable_source_attribution: boolean
+    enable_reasoning_chains: boolean
+  }
+  provider_status: {
+    custom_available: boolean
+    ollama_available: boolean
+  }
+}
+
 export default function AdminPage() {
   const { user: currentUser } = useAuth()
   const { toast } = useToast()
@@ -52,6 +86,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [stats, setStats] = useState<SystemStats | null>(null)
+  const [llmConfig, setLLMConfig] = useState<LLMConfig | null>(null)
   const [showCreateUser, setShowCreateUser] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [formData, setFormData] = useState({
@@ -81,14 +116,16 @@ export default function AdminPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [usersRes, rolesRes, statsRes] = await Promise.all([
+      const [usersRes, rolesRes, statsRes, configRes] = await Promise.all([
         adminAPI.getUsers(),
         adminAPI.getRoles(),
         adminAPI.getSystemStats(),
+        adminAPI.getLLMConfig(),
       ])
       setUsers(usersRes.data)
       setRoles(rolesRes.data)
       setStats(statsRes.data)
+      setLLMConfig(configRes.data)
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -183,9 +220,9 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
-      <div className="bg-white border-b shadow-sm">
+      <div className="bg-white dark:bg-gray-950 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
@@ -197,10 +234,13 @@ export default function AdminPage() {
               <h1 className="text-2xl font-bold">Admin Panel</h1>
             </div>
           </div>
-          <Badge variant="destructive" className="px-3 py-1">
-            <Shield className="h-3 w-3 mr-1" />
-            Administrator
-          </Badge>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <Badge variant="destructive" className="px-3 py-1">
+              <Shield className="h-3 w-3 mr-1" />
+              Administrator
+            </Badge>
+          </div>
         </div>
       </div>
 
@@ -244,6 +284,7 @@ export default function AdminPage() {
             <TabsTrigger value="users">User Management</TabsTrigger>
             <TabsTrigger value="roles">Roles & Permissions</TabsTrigger>
             <TabsTrigger value="stats">System Statistics</TabsTrigger>
+            <TabsTrigger value="llm-config">LLM Configuration</TabsTrigger>
           </TabsList>
 
           {/* User Management Tab */}
@@ -336,7 +377,7 @@ export default function AdminPage() {
                     {users.map((user) => (
                       <div
                         key={user.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors bg-card"
                       >
                         {editingUser?.id === user.id ? (
                           <div className="flex-1 grid grid-cols-4 gap-4 items-center">
@@ -398,7 +439,7 @@ export default function AdminPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => setEditingUser(user)}
+                                onClick={() => router.push(`/dashboard/admin/users/${user.id}`)}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -540,6 +581,167 @@ export default function AdminPage() {
                             : 'N/A'}
                         </span>
                       </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* LLM Configuration Tab */}
+          <TabsContent value="llm-config">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* LLM Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    LLM Settings
+                  </CardTitle>
+                  <CardDescription>Language Model configurations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-sm mb-3 text-blue-600">Custom LLM (GenAI Lab)</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between items-start pb-2 border-b">
+                          <span className="text-muted-foreground">Base URL:</span>
+                          <span className="font-mono text-xs break-all text-right max-w-[60%]">
+                            {llmConfig?.llm.custom_base_url || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2 border-b">
+                          <span className="text-muted-foreground">Model:</span>
+                          <span className="font-mono text-xs">{llmConfig?.llm.custom_model || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2 border-b">
+                          <span className="text-muted-foreground">API Key:</span>
+                          <span className="font-mono text-xs">{llmConfig?.llm.custom_api_key || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2 border-b">
+                          <span className="text-muted-foreground">Embedding Model:</span>
+                          <span className="font-mono text-xs">{llmConfig?.llm.custom_embedding_model || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1">
+                          <span className="text-muted-foreground">Status:</span>
+                          <Badge variant={llmConfig?.provider_status.custom_available ? 'default' : 'destructive'}>
+                            {llmConfig?.provider_status.custom_available ? '✓ Available' : '✗ Unavailable'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4">
+                      <h4 className="font-semibold text-sm mb-3 text-purple-600">Ollama (Local)</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between items-center pb-2 border-b">
+                          <span className="text-muted-foreground">Base URL:</span>
+                          <span className="font-mono text-xs">{llmConfig?.llm.ollama_base_url || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2 border-b">
+                          <span className="text-muted-foreground">Model:</span>
+                          <span className="font-mono text-xs">{llmConfig?.llm.ollama_model || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2 border-b">
+                          <span className="text-muted-foreground">Embedding Model:</span>
+                          <span className="font-mono text-xs">{llmConfig?.llm.ollama_embedding_model || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1">
+                          <span className="text-muted-foreground">Status:</span>
+                          <Badge variant={llmConfig?.provider_status.ollama_available ? 'default' : 'destructive'}>
+                            {llmConfig?.provider_status.ollama_available ? '✓ Available' : '✗ Unavailable'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Agent Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Agent Settings</CardTitle>
+                  <CardDescription>Agent behavior configurations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Temperature:</span>
+                      <span className="font-mono font-semibold">{llmConfig?.agent.temperature || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Max Iterations:</span>
+                      <span className="font-mono font-semibold">{llmConfig?.agent.max_iterations || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Enable Memory:</span>
+                      <Badge variant={llmConfig?.agent.enable_memory ? 'default' : 'secondary'}>
+                        {llmConfig?.agent.enable_memory ? 'Enabled' : 'Disabled'}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* RAG Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>RAG Settings</CardTitle>
+                  <CardDescription>Retrieval-Augmented Generation configurations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Chunk Size:</span>
+                      <span className="font-mono font-semibold">{llmConfig?.rag.chunk_size || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Chunk Overlap:</span>
+                      <span className="font-mono font-semibold">{llmConfig?.rag.chunk_overlap || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Max Retrieval Docs:</span>
+                      <span className="font-mono font-semibold">{llmConfig?.rag.max_retrieval_docs || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Similarity Threshold:</span>
+                      <span className="font-mono font-semibold">{llmConfig?.rag.similarity_threshold || 0}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Explainability Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Explainability Settings</CardTitle>
+                  <CardDescription>Transparency and explainability features</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Explainability Level:</span>
+                      <Badge variant="outline">{llmConfig?.explainability.explainability_level || 'N/A'}</Badge>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Confidence Scoring:</span>
+                      <Badge variant={llmConfig?.explainability.enable_confidence_scoring ? 'default' : 'secondary'}>
+                        {llmConfig?.explainability.enable_confidence_scoring ? 'Enabled' : 'Disabled'}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Source Attribution:</span>
+                      <Badge variant={llmConfig?.explainability.enable_source_attribution ? 'default' : 'secondary'}>
+                        {llmConfig?.explainability.enable_source_attribution ? 'Enabled' : 'Disabled'}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Reasoning Chains:</span>
+                      <Badge variant={llmConfig?.explainability.enable_reasoning_chains ? 'default' : 'secondary'}>
+                        {llmConfig?.explainability.enable_reasoning_chains ? 'Enabled' : 'Disabled'}
+                      </Badge>
                     </div>
                   </div>
                 </CardContent>

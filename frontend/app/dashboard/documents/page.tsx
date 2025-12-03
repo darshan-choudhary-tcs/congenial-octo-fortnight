@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { FileText, Upload, Loader2, Trash2, CheckCircle, AlertCircle, Clock, Home } from 'lucide-react'
 import { formatDate, formatFileSize } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
@@ -126,9 +127,9 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
-      <div className="bg-white border-b shadow-sm">
+      <div className="bg-white dark:bg-gray-950 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
@@ -153,6 +154,7 @@ export default function DocumentsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <ThemeToggle />
             <div>
               <input
                 id="file-upload"

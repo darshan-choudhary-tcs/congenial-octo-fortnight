@@ -58,6 +58,36 @@ async def list_users(
 
     return result
 
+@router.get("/users/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: int,
+    current_user: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db)
+):
+    """Get a specific user by ID (admin only)"""
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    roles = [role.name for role in user.roles]
+    permissions = []
+    for role in user.roles:
+        permissions.extend([perm.name for perm in role.permissions])
+
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        roles=roles,
+        permissions=list(set(permissions)),
+        preferred_llm=user.preferred_llm,
+        explainability_level=user.explainability_level
+    )
+
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user_admin(
     user_data: UserCreateAdmin,
@@ -214,4 +244,52 @@ async def get_system_stats(
         'total_conversations': db.query(Conversation).count(),
         'total_messages': db.query(Message).count(),
         'total_agent_executions': db.query(AgentLog).count()
+    }
+
+def mask_api_key(key: str) -> str:
+    """Mask API key for security - show first 3 and last 3 characters"""
+    if not key or len(key) < 8:
+        return "***********"
+    return f"{key[:3]}...{key[-3:]}"
+
+@router.get("/llm-config")
+async def get_llm_config(
+    current_user: User = Depends(require_role("admin"))
+):
+    """Get LLM configuration (admin only) with sensitive values masked"""
+
+    from app.config import settings
+    from app.services.llm_service import llm_service
+
+    return {
+        "llm": {
+            "custom_base_url": settings.CUSTOM_LLM_BASE_URL,
+            "custom_model": settings.CUSTOM_LLM_MODEL,
+            "custom_api_key": mask_api_key(settings.CUSTOM_LLM_API_KEY),
+            "custom_embedding_model": settings.CUSTOM_EMBEDDING_MODEL,
+            "ollama_base_url": settings.OLLAMA_BASE_URL,
+            "ollama_model": settings.OLLAMA_MODEL,
+            "ollama_embedding_model": settings.OLLAMA_EMBEDDING_MODEL,
+        },
+        "agent": {
+            "temperature": settings.AGENT_TEMPERATURE,
+            "max_iterations": settings.MAX_AGENT_ITERATIONS,
+            "enable_memory": settings.ENABLE_AGENT_MEMORY,
+        },
+        "rag": {
+            "chunk_size": settings.CHUNK_SIZE,
+            "chunk_overlap": settings.CHUNK_OVERLAP,
+            "max_retrieval_docs": settings.MAX_RETRIEVAL_DOCS,
+            "similarity_threshold": settings.SIMILARITY_THRESHOLD,
+        },
+        "explainability": {
+            "explainability_level": settings.EXPLAINABILITY_LEVEL,
+            "enable_confidence_scoring": settings.ENABLE_CONFIDENCE_SCORING,
+            "enable_source_attribution": settings.ENABLE_SOURCE_ATTRIBUTION,
+            "enable_reasoning_chains": settings.ENABLE_REASONING_CHAINS,
+        },
+        "provider_status": {
+            "custom_available": llm_service.custom_client is not None,
+            "ollama_available": llm_service.ollama_client is not None,
+        }
     }

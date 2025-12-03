@@ -14,6 +14,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { MessageSquare, Send, Loader2, FileText, Brain, TrendingUp, CheckCircle, Upload, Home, Trash2, Search, Zap, Shield, Lightbulb } from 'lucide-react'
 import { formatDate, getConfidenceColor, getConfidenceLabel } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
@@ -377,9 +378,9 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
-      <div className="bg-white border-b shadow-sm">
+      <div className="bg-white dark:bg-gray-950 border-b shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
@@ -405,6 +406,7 @@ export default function ChatPage() {
                 </SelectContent>
               </Select>
             </div>
+            <ThemeToggle />
             <Button
               variant="outline"
               size="sm"
