@@ -36,6 +36,13 @@ import {
   AppBar,
   Toolbar,
   Container,
+  Popover,
+  Avatar,
+  Tooltip,
+  Stepper,
+  Step,
+  StepLabel,
+  Badge,
 } from '@mui/material'
 import {
   Chat as MessageSquareIcon,
@@ -51,6 +58,14 @@ import {
   ExpandMore as ExpandMoreIcon,
   Description as FileTextIcon,
   Add as AddIcon,
+  Settings as SettingsIcon,
+  Menu as MenuIcon,
+  Close as CloseIcon,
+  Person as PersonIcon,
+  SmartToy as SmartToyIcon,
+  Verified as VerifiedIcon,
+  Warning as WarningIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material'
 
 interface Message {
@@ -101,6 +116,8 @@ export default function ChatPage() {
   const [includeGrounding, setIncludeGrounding] = useState(true)
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(true)
+  const [settingsAnchorEl, setSettingsAnchorEl] = useState<null | HTMLElement>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [streamingState, setStreamingState] = useState<StreamingState>({
     isStreaming: false,
     currentAgent: null,
@@ -110,6 +127,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const settingsOpen = Boolean(settingsAnchorEl)
 
   useEffect(() => {
     loadConversations()
@@ -124,6 +142,18 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    const handleKeyboard = (e: KeyboardEvent) => {
+      // Cmd+K or Ctrl+K for new conversation
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        handleNewConversation()
+      }
+    }
+    window.addEventListener('keydown', handleKeyboard)
+    return () => window.removeEventListener('keydown', handleKeyboard)
+  }, [])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -142,6 +172,10 @@ export default function ChatPage() {
       setLoadingConversations(false)
     }
   }
+
+  const filteredConversations = conversations.filter(conv =>
+    conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   const loadMessages = async (conversationId: string) => {
     try {
@@ -397,82 +431,160 @@ export default function ChatPage() {
         <Container maxWidth="xl">
           <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton
+                onClick={() => setDrawerOpen(!drawerOpen)}
+                sx={{ display: { xs: 'inline-flex', md: 'inline-flex' } }}
+              >
+                {drawerOpen ? <CloseIcon /> : <MenuIcon />}
+              </IconButton>
               <Button
                 variant="text"
                 startIcon={<HomeIcon />}
                 onClick={() => router.push('/dashboard')}
+                sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
               >
                 Dashboard
               </Button>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <MessageSquareIcon color="primary" />
-                <Typography variant="h5" fontWeight="bold">
+                <MessageSquareIcon color="primary" sx={{ fontSize: { xs: 28, sm: 32 } }} />
+                <Typography variant="h5" fontWeight="bold" sx={{ display: { xs: 'none', sm: 'block' } }}>
                   RAG Chat
+                </Typography>
+                <Typography variant="h6" fontWeight="bold" sx={{ display: { xs: 'block', sm: 'none' } }}>
+                  Chat
                 </Typography>
               </Box>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <FormControl size="small" sx={{ minWidth: 140 }}>
-                <InputLabel>LLM Provider</InputLabel>
-                <Select
-                  value={provider}
-                  onChange={(e) => setProvider(e.target.value)}
-                  disabled={loading}
-                  label="LLM Provider"
-                >
-                  <MenuItem value="custom">Custom API</MenuItem>
-                  <MenuItem value="ollama">Ollama</MenuItem>
-                </Select>
-              </FormControl>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ThemeToggle />
-              <Button
-                variant="contained"
-                startIcon={uploadingDoc ? <CircularProgress size={20} color="inherit" /> : <UploadIcon />}
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingDoc}
+              <IconButton
+                onClick={(e) => setSettingsAnchorEl(e.currentTarget)}
+                color="primary"
               >
-                Upload Doc
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                style={{ display: 'none' }}
-                accept=".pdf,.txt,.csv,.docx"
-                onChange={handleFileUpload}
-              />
+                <SettingsIcon />
+              </IconButton>
             </Box>
           </Box>
         </Container>
       </Paper>
 
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', gap: 3 }}>
+      {/* Settings Popover */}
+      <Popover
+        open={settingsOpen}
+        anchorEl={settingsAnchorEl}
+        onClose={() => setSettingsAnchorEl(null)}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <Box sx={{ p: 3, minWidth: 320 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Chat Settings
+          </Typography>
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>LLM Provider</InputLabel>
+            <Select
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              disabled={loading}
+              label="LLM Provider"
+              size="small"
+            >
+              <MenuItem value="custom">Custom API</MenuItem>
+              <MenuItem value="ollama">Ollama</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={includeGrounding}
+                onChange={(e) => setIncludeGrounding(e.target.checked)}
+                size="small"
+              />
+            }
+            label={
+              <Box>
+                <Typography variant="body2">Grounding Verification</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Verify responses against source documents
+                </Typography>
+              </Box>
+            }
+            sx={{ mb: 2, alignItems: 'flex-start' }}
+          />
+          <Divider sx={{ my: 2 }} />
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={uploadingDoc ? <CircularProgress size={20} /> : <UploadIcon />}
+            onClick={() => {
+              setSettingsAnchorEl(null)
+              fileInputRef.current?.click()
+            }}
+            disabled={uploadingDoc}
+          >
+            Upload Document
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            style={{ display: 'none' }}
+            accept=".pdf,.txt,.csv,.docx"
+            onChange={handleFileUpload}
+          />
+        </Box>
+      </Popover>
+
+      <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 }, flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', gap: { xs: 0, md: 3 }, width: '100%' }}>
           {/* Sidebar - Conversations */}
           <Drawer
-            variant="persistent"
+            variant={drawerOpen ? "persistent" : "temporary"}
             anchor="left"
             open={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
             sx={{
-              width: 300,
+              width: { xs: 280, sm: 320 },
               flexShrink: 0,
               '& .MuiDrawer-paper': {
-                width: 300,
+                width: { xs: 280, sm: 320 },
                 boxSizing: 'border-box',
                 position: 'relative',
                 height: 'calc(100vh - 140px)',
+                border: 'none',
+                bgcolor: 'background.default',
             },
           }}
         >
           <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">Conversations</Typography>
-            <Button
-              variant="contained"
+            <Typography variant="h6" fontWeight="bold">Conversations</Typography>
+            <Tooltip title="New conversation (⌘K)">
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={handleNewConversation}
+              >
+                New
+              </Button>
+            </Tooltip>
+          </Box>
+          <Box sx={{ px: 2, pb: 2 }}>
+            <TextField
+              fullWidth
               size="small"
-              startIcon={<AddIcon />}
-              onClick={handleNewConversation}
-            >
-              New
-            </Button>
+              placeholder="Search conversations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} fontSize="small" />,
+              }}
+            />
           </Box>
           <Divider />
           <Box sx={{ overflow: 'auto', flexGrow: 1 }}>
@@ -480,16 +592,20 @@ export default function ChatPage() {
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                 <CircularProgress />
               </Box>
-            ) : conversations.length === 0 ? (
+            ) : filteredConversations.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 4, px: 2, color: 'text.secondary' }}>
-                <Typography>No conversations yet</Typography>
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  Start chatting to create one
+                <Typography variant="body2">
+                  {searchQuery ? 'No conversations found' : 'No conversations yet'}
                 </Typography>
+                {!searchQuery && (
+                  <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
+                    Start chatting to create one
+                  </Typography>
+                )}
               </Box>
             ) : (
-              <List>
-                {conversations.map((conv) => (
+              <List sx={{ py: 0 }}>
+                {filteredConversations.map((conv) => (
                   <ListItem
                     key={conv.id}
                     disablePadding
@@ -498,6 +614,7 @@ export default function ChatPage() {
                         edge="end"
                         onClick={(e) => handleDeleteConversation(conv.id, e)}
                         size="small"
+                        sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -506,12 +623,23 @@ export default function ChatPage() {
                     <ListItemButton
                       selected={currentConversation === conv.id}
                       onClick={() => setCurrentConversation(conv.id)}
+                      sx={{
+                        borderRadius: 2,
+                        mx: 1,
+                        my: 0.5,
+                        '&.Mui-selected': {
+                          bgcolor: 'primary.light',
+                          '&:hover': {
+                            bgcolor: 'primary.light',
+                          }
+                        }
+                      }}
                     >
                       <ListItemText
                         primary={conv.title}
                         secondary={`${conv.message_count} messages • ${formatDate(conv.updated_at)}`}
-                        primaryTypographyProps={{ noWrap: true }}
-                        secondaryTypographyProps={{ variant: 'caption' }}
+                        primaryTypographyProps={{ noWrap: true, fontWeight: currentConversation === conv.id ? 600 : 400 }}
+                        secondaryTypographyProps={{ variant: 'caption', fontSize: '0.7rem' }}
                       />
                     </ListItemButton>
                   </ListItem>
@@ -577,204 +705,191 @@ export default function ChatPage() {
                     key={message.id}
                     sx={{
                       display: 'flex',
-                      justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                      gap: 2,
+                      flexDirection: message.role === 'user' ? 'row-reverse' : 'row',
+                      alignItems: 'flex-start',
                     }}
                   >
-                    <Paper
-                      elevation={1}
+                    {/* Avatar */}
+                    <Avatar
                       sx={{
-                        maxWidth: '80%',
-                        p: 2,
-                        bgcolor: message.role === 'user' ? 'primary.main' : 'background.paper',
-                        color: message.role === 'user' ? 'primary.contrastText' : 'text.primary',
-                        border: message.role === 'user' ? 'none' : 1,
-                        borderColor: 'divider',
+                        bgcolor: message.role === 'user' ? 'primary.main' : 'secondary.main',
+                        width: 40,
+                        height: 40,
                       }}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      {message.role === 'user' ? <PersonIcon /> : <SmartToyIcon />}
+                    </Avatar>
+
+                    {/* Message Content */}
+                    <Box sx={{ flexGrow: 1, maxWidth: { xs: 'calc(100% - 56px)', md: '85%' } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                         <Typography variant="subtitle2" fontWeight="bold">
                           {message.role === 'user' ? 'You' : 'AI Assistant'}
                         </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatDate(message.created_at)}
+                        </Typography>
                         {message.confidence_score !== undefined && (
-                          <Chip
-                            label={getConfidenceLabel(message.confidence_score)}
-                            size="small"
-                            sx={{ height: 20, fontSize: '0.7rem' }}
-                          />
+                          <Tooltip title={`Confidence: ${(message.confidence_score * 100).toFixed(1)}%`}>
+                            <Chip
+                              icon={<VerifiedIcon sx={{ fontSize: 14 }} />}
+                              label={getConfidenceLabel(message.confidence_score)}
+                              size="small"
+                              color={message.confidence_score >= 0.7 ? 'success' : 'warning'}
+                              sx={{ height: 22, fontSize: '0.75rem' }}
+                            />
+                          </Tooltip>
                         )}
                         {message.low_confidence_warning && (
-                          <Chip
-                            label="Low KB Match"
-                            size="small"
-                            color="warning"
-                            sx={{ height: 20, fontSize: '0.7rem' }}
-                          />
+                          <Tooltip title="Response may not be well-grounded in the knowledge base">
+                            <Chip
+                              icon={<WarningIcon sx={{ fontSize: 14 }} />}
+                              label="Low Match"
+                              size="small"
+                              color="warning"
+                              variant="outlined"
+                              sx={{ height: 22, fontSize: '0.75rem' }}
+                            />
+                          </Tooltip>
                         )}
                       </Box>
-                      <Box sx={{ '& p': { m: 0 }, '& pre': { overflowX: 'auto' } }}>
-                        <ReactMarkdown>{message.content}</ReactMarkdown>
-                      </Box>
-                      {message.sources && message.sources.length > 0 && (
-                        <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                          <Accordion>
-                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <FileTextIcon fontSize="small" />
-                                <Typography variant="body2">
-                                  Sources ({message.sources.length})
-                                </Typography>
-                              </Box>
-                            </AccordionSummary>
-                            <AccordionDetails>
-                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                {message.sources.map((source, idx) => (
-                                  <Paper
-                                    key={idx}
-                                    variant="outlined"
-                                    sx={{ p: 1, bgcolor: 'background.default' }}
-                                  >
-                                    <Box
-                                      sx={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        mb: 0.5,
-                                      }}
-                                    >
-                                      <Typography variant="caption" fontWeight="bold">
-                                        Source {source.source_number}
-                                      </Typography>
-                                      <Chip
-                                        label={`${(source.similarity * 100).toFixed(1)}% match`}
-                                        size="small"
-                                        sx={{ height: 18, fontSize: '0.65rem' }}
-                                      />
-                                    </Box>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {source.content}
-                                    </Typography>
-                                    {source.metadata && (
-                                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                                        {source.metadata.document_title}
-                                      </Typography>
-                                    )}
-                                  </Paper>
-                                ))}
-                              </Box>
-                            </AccordionDetails>
-                          </Accordion>
+                      <Paper
+                        elevation={message.role === 'user' ? 0 : 1}
+                        sx={{
+                          p: 2,
+                          bgcolor: message.role === 'user' ? 'primary.main' : 'background.paper',
+                          color: message.role === 'user' ? 'primary.contrastText' : 'text.primary',
+                          border: message.role === 'user' ? 'none' : 1,
+                          borderColor: 'divider',
+                          borderRadius: 3,
+                        }}
+                      >
+                        <Box sx={{ '& p': { m: 0, lineHeight: 1.6 }, '& pre': { overflowX: 'auto', borderRadius: 1, p: 1 } }}>
+                          <ReactMarkdown>{message.content}</ReactMarkdown>
                         </Box>
-                      )}
-                      <Typography variant="caption" sx={{ opacity: 0.7, mt: 1, display: 'block' }}>
-                        {formatDate(message.created_at)}
-                      </Typography>
-                    </Paper>
+
+                        {/* Inline Source Chips */}
+                        {message.sources && message.sources.length > 0 && (
+                          <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                            {message.sources.map((source, idx) => (
+                              <Tooltip
+                                key={idx}
+                                title={
+                                  <Box>
+                                    <Typography variant="caption" fontWeight="bold" display="block">
+                                      {source.metadata?.document_title || `Source ${source.source_number}`}
+                                    </Typography>
+                                    <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+                                      {source.content.substring(0, 150)}...
+                                    </Typography>
+                                    <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'primary.light' }}>
+                                      Match: {(source.similarity * 100).toFixed(1)}%
+                                    </Typography>
+                                  </Box>
+                                }
+                                arrow
+                              >
+                                <Chip
+                                  icon={<FileTextIcon sx={{ fontSize: 14 }} />}
+                                  label={`Source ${source.source_number}`}
+                                  size="small"
+                                  variant={message.role === 'user' ? 'filled' : 'outlined'}
+                                  sx={{
+                                    height: 24,
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                      bgcolor: message.role === 'user' ? 'primary.dark' : 'action.hover',
+                                    }
+                                  }}
+                                />
+                              </Tooltip>
+                            ))}
+                          </Box>
+                        )}
+                      </Paper>
+                    </Box>
                   </Box>
                 ))}
                 {streamingState.isStreaming && (
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
-                    <Paper
-                      elevation={1}
-                      sx={{
-                        maxWidth: '80%',
-                        p: 2,
-                        bgcolor: 'background.paper',
-                        border: 1,
-                        borderColor: 'divider',
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                        <CircularProgress size={16} />
-                        <Typography variant="body2" fontWeight="bold">
-                          Processing your request...
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                    {/* Avatar */}
+                    <Avatar sx={{ bgcolor: 'secondary.main', width: 40, height: 40 }}>
+                      <SmartToyIcon />
+                    </Avatar>
+
+                    {/* Streaming Content */}
+                    <Box sx={{ flexGrow: 1, maxWidth: { xs: 'calc(100% - 56px)', md: '85%' } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                        <Typography variant="subtitle2" fontWeight="bold">
+                          AI Assistant
                         </Typography>
+                        <Chip
+                          icon={<CircularProgress size={12} color="inherit" />}
+                          label="Processing"
+                          size="small"
+                          color="primary"
+                          sx={{ height: 22, fontSize: '0.75rem' }}
+                        />
                       </Box>
+                      <Paper
+                        elevation={1}
+                        sx={{
+                          p: 2,
+                          bgcolor: 'background.paper',
+                          border: 1,
+                          borderColor: 'divider',
+                          borderRadius: 3,
+                        }}
+                      >
+                        {/* Compact Agent Stepper */}
+                        <Box sx={{ mb: 2 }}>
+                          <Stepper activeStep={streamingState.agentStatuses.length} alternativeLabel sx={{ pt: 1, pb: 0 }}>
+                            {['Research', 'Generate', 'Verify', 'Explain'].map((label, index) => {
+                              const agentNames = ['ResearchAgent', 'RAGGenerator', 'GroundingAgent', 'ExplainabilityAgent']
+                              const agentStatus = streamingState.agentStatuses.find(s => s.agent === agentNames[index])
+                              const isActive = streamingState.currentAgent === agentNames[index]
+                              const isCompleted = agentStatus?.status === 'completed'
 
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {streamingState.agentStatuses.map((status, idx) => {
-                          const isActive = streamingState.currentAgent === status.agent
-                          const icons: Record<string, any> = {
-                            'ResearchAgent': SearchIcon,
-                            'RAGGenerator': BrainIcon,
-                            'GroundingAgent': ShieldIcon,
-                            'ExplainabilityAgent': LightbulbIcon
-                          }
-                          const Icon = icons[status.agent] || BrainIcon
-
-                          return (
-                            <Paper
-                              key={idx}
-                              variant="outlined"
-                              sx={{
-                                p: 1,
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                gap: 1,
-                                bgcolor: isActive
-                                  ? 'primary.light'
-                                  : status.status === 'completed'
-                                  ? 'success.light'
-                                  : status.status === 'failed'
-                                  ? 'error.light'
-                                  : 'background.default',
-                                borderColor: isActive
-                                  ? 'primary.main'
-                                  : status.status === 'completed'
-                                  ? 'success.main'
-                                  : status.status === 'failed'
-                                  ? 'error.main'
-                                  : 'divider',
-                              }}
-                            >
-                              {status.status === 'started' ? (
-                                <CircularProgress size={12} sx={{ mt: 0.25 }} />
-                              ) : status.status === 'completed' ? (
-                                <CheckCircleIcon sx={{ fontSize: 12, mt: 0.25, color: 'success.main' }} />
-                              ) : (
-                                <Icon sx={{ fontSize: 12, mt: 0.25 }} />
-                              )}
-                              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <Typography variant="caption" fontWeight="bold">
-                                    {status.agent}
-                                  </Typography>
-                                  {status.result && (
-                                    <Chip
-                                      label={
-                                        status.result.document_count !== undefined
-                                          ? `${status.result.document_count} docs`
-                                          : status.result.confidence !== undefined
-                                          ? `${(status.result.confidence * 100).toFixed(0)}%`
-                                          : ''
+                              return (
+                                <Step key={label} completed={isCompleted} active={isActive}>
+                                  <StepLabel
+                                    StepIconProps={{
+                                      sx: {
+                                        fontSize: { xs: 20, sm: 28 },
+                                        color: isCompleted ? 'success.main' : isActive ? 'primary.main' : 'action.disabled'
                                       }
-                                      size="small"
-                                      sx={{ height: 16, fontSize: '0.6rem' }}
-                                    />
-                                  )}
-                                </Box>
-                                <Typography variant="caption" color="text.secondary">
-                                  {status.message}
-                                </Typography>
-                              </Box>
-                            </Paper>
-                          )
-                        })}
-                      </Box>
-
-                      {streamingState.accumulatedResponse && (
-                        <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                            Preview:
-                          </Typography>
-                          <Box sx={{ '& p': { m: 0 }, fontSize: '0.875rem' }}>
-                            <ReactMarkdown>
-                              {streamingState.accumulatedResponse.substring(0, 200) +
-                                (streamingState.accumulatedResponse.length > 200 ? '...' : '')}
-                            </ReactMarkdown>
-                          </Box>
+                                    }}
+                                  >
+                                    <Typography variant="caption" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                                      {label}
+                                    </Typography>
+                                  </StepLabel>
+                                </Step>
+                              )
+                            })}
+                          </Stepper>
                         </Box>
-                      )}
-                    </Paper>
+
+                        {/* Preview of Response */}
+                        {streamingState.accumulatedResponse && (
+                          <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                            <Box sx={{
+                              '& p': { m: 0, lineHeight: 1.6 },
+                              '& pre': { overflowX: 'auto', borderRadius: 1, p: 1 },
+                              opacity: 0.8,
+                              fontStyle: 'italic'
+                            }}>
+                              <ReactMarkdown>
+                                {streamingState.accumulatedResponse.substring(0, 300) +
+                                  (streamingState.accumulatedResponse.length > 300 ? '...' : '')}
+                              </ReactMarkdown>
+                            </Box>
+                          </Box>
+                        )}
+                      </Paper>
+                    </Box>
                   </Box>
                 )}
                 {loading && !streamingState.isStreaming && (
@@ -792,45 +907,66 @@ export default function ChatPage() {
         </Paper>
 
         {/* Input Area */}
-        <Paper elevation={2} sx={{ p: 2 }}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={includeGrounding}
-                onChange={(e) => setIncludeGrounding(e.target.checked)}
-                size="small"
-              />
-            }
-            label={
-              <Typography variant="body2">Include Grounding Verification</Typography>
-            }
-            sx={{ mb: 1 }}
-          />
-          <Box sx={{ display: 'flex', gap: 1 }}>
+        <Paper
+          elevation={3}
+          sx={{
+            p: { xs: 2, sm: 2.5 },
+            borderRadius: 3,
+            border: 1,
+            borderColor: 'divider',
+          }}
+        >
+          <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'flex-end' }}>
             <TextField
               fullWidth
+              multiline
+              maxRows={4}
               placeholder="Ask a question about your documents..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSendMessage()
+                }
+              }}
               disabled={loading}
               variant="outlined"
-              size="small"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  bgcolor: 'background.paper',
+                }
+              }}
             />
-            <IconButton
-              color="primary"
+            <Button
+              variant="contained"
               onClick={handleSendMessage}
               disabled={loading || !input.trim()}
+              endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
               sx={{
-                bgcolor: 'primary.main',
-                color: 'white',
-                '&:hover': { bgcolor: 'primary.dark' },
-                '&:disabled': { bgcolor: 'action.disabledBackground' },
+                minWidth: { xs: 80, sm: 120 },
+                height: 56,
+                borderRadius: 2,
+                textTransform: 'none',
+                fontSize: '1rem',
+                fontWeight: 600,
+                boxShadow: 2,
+                '&:hover': {
+                  boxShadow: 4,
+                },
               }}
             >
-              {loading ? <CircularProgress size={24} color="inherit" /> : <SendIcon />}
-            </IconButton>
+              <Box sx={{ display: { xs: 'none', sm: 'block' } }}>Send</Box>
+            </Button>
           </Box>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ mt: 1, display: 'block', textAlign: 'center' }}
+          >
+            Press Enter to send, Shift+Enter for new line • ⌘K for new conversation
+          </Typography>
         </Paper>
         </Box>
       </Box>
