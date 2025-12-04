@@ -5,14 +5,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 from loguru import logger
-from passlib.context import CryptContext
 
 from app.config import settings
 from app.database.models import Base, User, Role, Permission, user_roles, role_permissions
-import argon2
-
-# Password hashing context (to avoid circular import)
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # Create engine
 engine = create_engine(
@@ -131,6 +126,8 @@ def seed_roles_and_permissions(db: Session):
 
 def create_default_users(db: Session):
     """Create default users for testing"""
+    # Import here to avoid circular dependency
+    from app.auth.security import get_password_hash
 
     # Get roles
     admin_role = db.query(Role).filter(Role.name == "admin").first()
@@ -167,7 +164,7 @@ def create_default_users(db: Session):
 
         user = User(
             **user_data,
-            hashed_password=pwd_context.hash(password),
+            hashed_password=get_password_hash(password),
             is_active=True
         )
         user.roles = roles

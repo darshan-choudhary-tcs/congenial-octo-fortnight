@@ -14,7 +14,8 @@ from app.auth.security import (
     get_password_hash,
     create_access_token,
     get_current_active_user,
-    check_permission
+    check_permission,
+    format_user_response
 )
 from app.auth.schemas import (
     Token,
@@ -66,21 +67,11 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
     logger.info(f"New user registered: {user.username}")
 
-    # Prepare response
-    roles = [role.name for role in user.roles]
-    permissions = []
-    for role in user.roles:
-        permissions.extend([perm.name for perm in role.permissions])
-
+    # Prepare response using helper
+    user_data = format_user_response(user)
     return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        full_name=user.full_name,
-        is_active=user.is_active,
+        **user_data,
         created_at=user.created_at,
-        roles=roles,
-        permissions=list(set(permissions)),
         preferred_llm=user.preferred_llm,
         explainability_level=user.explainability_level
     )
@@ -146,20 +137,10 @@ async def get_current_user_info(
 ):
     """Get current user information"""
 
-    roles = [role.name for role in current_user.roles]
-    permissions = []
-    for role in current_user.roles:
-        permissions.extend([perm.name for perm in role.permissions])
-
+    user_data = format_user_response(current_user)
     return UserResponse(
-        id=current_user.id,
-        username=current_user.username,
-        email=current_user.email,
-        full_name=current_user.full_name,
-        is_active=current_user.is_active,
+        **user_data,
         created_at=current_user.created_at,
-        roles=roles,
-        permissions=list(set(permissions)),
         preferred_llm=current_user.preferred_llm,
         explainability_level=current_user.explainability_level
     )
@@ -207,22 +188,12 @@ async def update_current_user(
     db.commit()
     db.refresh(current_user)
 
-    roles = [role.name for role in current_user.roles]
-    permissions = []
-    for role in current_user.roles:
-        permissions.extend([perm.name for perm in role.permissions])
-
     logger.info(f"User updated: {current_user.username}")
 
+    user_data = format_user_response(current_user)
     return UserResponse(
-        id=current_user.id,
-        username=current_user.username,
-        email=current_user.email,
-        full_name=current_user.full_name,
-        is_active=current_user.is_active,
+        **user_data,
         created_at=current_user.created_at,
-        roles=roles,
-        permissions=list(set(permissions)),
         preferred_llm=current_user.preferred_llm,
         explainability_level=current_user.explainability_level
     )

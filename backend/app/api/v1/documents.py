@@ -21,6 +21,223 @@ from app.config import settings
 
 router = APIRouter()
 
+async def _process_and_upload_document(
+    file: UploadFile,
+    scope: str,
+    current_user: User,
+    db: Session,
+    provider: str = "custom",
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    category: Optional[str] = None
+) -> dict:
+    """
+    Shared logic for processing and uploading documents.
+
+    Args:
+        file: Uploaded file
+        scope: Document scope ('user' or 'global')
+        current_user: Current authenticated user
+        db: Database session
+        provider: LLM provider for metadata generation
+        title: Document title
+        description: Document description
+        category: Document category
+
+    Returns:
+        Dictionary with document response data
+
+    Raises:
+        HTTPException: On validation or processing errors
+    """
+    # Validate file extension
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in settings.ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File type not allowed. Allowed types: {settings.ALLOWED_EXTENSIONS}"
+        )
+
+    # Save file
+    file_uuid = str(uuid.uuid4())
+    file_path = os.path.join(settings.UPLOAD_DIR, f"{file_uuid}{file_ext}")
+
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        if len(content) > settings.MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File too large. Maximum size: {settings.MAX_UPLOAD_SIZE} bytes"
+            )
+        f.write(content)
+
+    # Create document record
+    document = Document(
+        filename=file.filename,
+        file_path=file_path,
+        file_type=file_ext.replace('.', ''),
+        file_size=len(content),
+        title=title or file.filename,
+        description=description,
+        category=category,
+        uploaded_by_id=current_user.id,
+        scope=scope,
+        processing_status="processing"
+    )
+    db.add(document)
+    db.flush()
+
+    # Process document
+    try:
+        # Extract text
+        text_content, metadata = DocumentProcessor.process_document(file_path)
+
+        # Generate LLM-based metadata
+        llm_service = LLMService()
+        logger.info(f"Generating metadata for document: {file.filename}")
+
+        total_summarization_tokens = 0
+
+        try:
+            # Generate summary
+            summary_result = await llm_service.generate_document_summary(
+                text=text_content,
+                provider=provider
+            )
+            document.auto_summary = summary_result["summary"]
+            total_summarization_tokens += summary_result["token_usage"].get("total_tokens", 0)
+            logger.info(f"Summary generated ({len(summary_result['summary'])} chars)")
+
+            # Extract keywords
+            keywords_result = await llm_service.extract_keywords(
+                text=text_content,
+                provider=provider,
+                max_keywords=10
+            )
+            document.auto_keywords = keywords_result["keywords"]
+            total_summarization_tokens += keywords_result["token_usage"].get("total_tokens", 0)
+            logger.info(f"Keywords extracted: {keywords_result['keywords']}")
+
+            # Classify topics
+            topics_result = await llm_service.classify_topics(
+                text=text_content,
+                provider=provider,
+                max_topics=5
+            )
+            document.auto_topics = topics_result["topics"]
+            total_summarization_tokens += topics_result["token_usage"].get("total_tokens", 0)
+            logger.info(f"Topics classified: {topics_result['topics']}")
+
+            # Determine content type
+            content_type_result = await llm_service.determine_content_type(
+                text=text_content,
+                provider=provider
+            )
+            document.content_type = content_type_result["content_type"]
+            total_summarization_tokens += content_type_result["token_usage"].get("total_tokens", 0)
+            logger.info(f"Content type determined: {content_type_result['content_type']}")
+
+            # Store metadata generation info
+            document.summarization_model = provider
+            document.summarization_tokens = total_summarization_tokens
+            from datetime import datetime
+            document.summarized_at = datetime.utcnow()
+
+        except Exception as meta_error:
+            logger.warning(f"Failed to generate LLM metadata: {meta_error}. Continuing with document processing.")
+
+        # Chunk text
+        chunks = TextChunker.chunk_text(text_content)
+
+        # Generate embeddings and store in vector DB
+        chunk_texts = [chunk['content'] for chunk in chunks]
+        chunk_metadatas = [
+            {
+                'document_id': document.uuid,
+                'document_title': document.title,
+                'chunk_index': chunk['chunk_index'],
+                'file_type': document.file_type,
+                'category': category or 'general',
+                'user_id': str(current_user.id),
+                'uploaded_by_id': str(current_user.id),
+                'scope': scope,
+                'keywords': ', '.join(document.auto_keywords) if document.auto_keywords else '',
+                'topics': ', '.join(document.auto_topics) if document.auto_topics else '',
+                'content_type': document.content_type if document.content_type else 'general'
+            }
+            for chunk in chunks
+        ]
+
+        # Add to vector store
+        logger.info(f"Adding documents to vector store with provider: {provider}, scope: {scope}, user: {current_user.id}")
+        chunk_ids = await vector_store_service.add_documents(
+            texts=chunk_texts,
+            metadatas=chunk_metadatas,
+            provider=provider,
+            scope=scope,
+            user_id=current_user.id
+        )
+
+        # Save chunks to database
+        for chunk, chunk_id in zip(chunks, chunk_ids):
+            doc_chunk = DocumentChunk(
+                document_id=document.id,
+                content=chunk['content'],
+                chunk_index=chunk['chunk_index'],
+                num_tokens=chunk['num_tokens'],
+                embedding_id=chunk_id
+            )
+            db.add(doc_chunk)
+
+        # Update document
+        document.is_processed = True
+        document.processing_status = "completed"
+        document.num_chunks = len(chunks)
+        document.num_tokens = sum(chunk['num_tokens'] for chunk in chunks)
+
+        db.commit()
+        db.refresh(document)
+
+        logger.info(f"Document processed: {file.filename} ({len(chunks)} chunks)")
+
+        return {
+            "id": document.uuid,
+            "filename": document.filename,
+            "file_type": document.file_type,
+            "file_size": document.file_size,
+            "title": document.title,
+            "is_processed": document.is_processed,
+            "processing_status": document.processing_status,
+            "num_chunks": document.num_chunks,
+            "uploaded_at": document.uploaded_at.isoformat(),
+            "scope": document.scope,
+            "auto_summary": document.auto_summary,
+            "auto_keywords": document.auto_keywords,
+            "auto_topics": document.auto_topics,
+            "content_type": document.content_type
+        }
+
+    except Exception as e:
+        document.processing_status = "failed"
+        document.error_message = str(e)
+        db.commit()
+        logger.error(f"Document processing failed: {e}")
+
+        # Provide helpful error message for authentication issues
+        error_detail = str(e)
+        if "RBAC: access denied" in error_detail or "access denied" in error_detail.lower():
+            error_detail = (
+                "Authentication failed with the custom LLM API. "
+                "Please check your CUSTOM_LLM_API_KEY in the .env file. "
+                "Alternatively, switch to Ollama by using provider='ollama' and ensure Ollama is running locally."
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Document processing failed: {error_detail}"
+        )
+
+
 class DocumentResponse(BaseModel):
     id: str
     filename: str
@@ -55,195 +272,17 @@ async def upload_document(
     logger.info(f"Document upload started - File: {file.filename}, Provider: {provider}")
 
     try:
-        # Validate file extension
-        file_ext = Path(file.filename).suffix.lower()
-        if file_ext not in settings.ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File type not allowed. Allowed types: {settings.ALLOWED_EXTENSIONS}"
-            )
-
-        # Save file
-        file_uuid = str(uuid.uuid4())
-        file_path = os.path.join(settings.UPLOAD_DIR, f"{file_uuid}{file_ext}")
-
-        with open(file_path, "wb") as f:
-            content = await file.read()
-            if len(content) > settings.MAX_UPLOAD_SIZE:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"File too large. Maximum size: {settings.MAX_UPLOAD_SIZE} bytes"
-                )
-            f.write(content)
-
-        # Create document record
-        document = Document(
-            filename=file.filename,
-            file_path=file_path,
-            file_type=file_ext.replace('.', ''),
-            file_size=len(content),
-            title=title or file.filename,
+        result = await _process_and_upload_document(
+            file=file,
+            scope="user",
+            current_user=current_user,
+            db=db,
+            provider=provider,
+            title=title,
             description=description,
-            category=category,
-            uploaded_by_id=current_user.id,
-            scope=scope,
-            processing_status="processing"
+            category=category
         )
-        db.add(document)
-        db.flush()
-
-        # Process document
-        try:
-            # Extract text
-            text_content, metadata = DocumentProcessor.process_document(file_path)
-
-            # Generate LLM-based metadata
-            llm_service = LLMService()
-            logger.info(f"Generating metadata for document: {file.filename}")
-
-            total_summarization_tokens = 0
-
-            try:
-                # Generate summary
-                summary_result = await llm_service.generate_document_summary(
-                    text=text_content,
-                    provider=provider
-                )
-                document.auto_summary = summary_result["summary"]
-                total_summarization_tokens += summary_result["token_usage"].get("total_tokens", 0)
-                logger.info(f"Summary generated ({len(summary_result['summary'])} chars)")
-
-                # Extract keywords
-                keywords_result = await llm_service.extract_keywords(
-                    text=text_content,
-                    provider=provider,
-                    max_keywords=10
-                )
-                document.auto_keywords = keywords_result["keywords"]
-                total_summarization_tokens += keywords_result["token_usage"].get("total_tokens", 0)
-                logger.info(f"Keywords extracted: {keywords_result['keywords']}")
-
-                # Classify topics
-                topics_result = await llm_service.classify_topics(
-                    text=text_content,
-                    provider=provider,
-                    max_topics=5
-                )
-                document.auto_topics = topics_result["topics"]
-                total_summarization_tokens += topics_result["token_usage"].get("total_tokens", 0)
-                logger.info(f"Topics classified: {topics_result['topics']}")
-
-                # Determine content type
-                content_type_result = await llm_service.determine_content_type(
-                    text=text_content,
-                    provider=provider
-                )
-                document.content_type = content_type_result["content_type"]
-                total_summarization_tokens += content_type_result["token_usage"].get("total_tokens", 0)
-                logger.info(f"Content type determined: {content_type_result['content_type']}")
-
-                # Store metadata generation info
-                document.summarization_model = provider
-                document.summarization_tokens = total_summarization_tokens
-                from datetime import datetime
-                document.summarized_at = datetime.utcnow()
-
-            except Exception as meta_error:
-                logger.warning(f"Failed to generate LLM metadata: {meta_error}. Continuing with document processing.")
-                # Continue processing even if metadata generation fails
-
-            # Chunk text
-            chunks = TextChunker.chunk_text(text_content)
-
-            # Generate embeddings and store in vector DB
-            chunk_texts = [chunk['content'] for chunk in chunks]
-            chunk_metadatas = [
-                {
-                    'document_id': document.uuid,
-                    'document_title': document.title,
-                    'chunk_index': chunk['chunk_index'],
-                    'file_type': document.file_type,
-                    'category': category or 'general',
-                    'user_id': str(current_user.id),
-                    'uploaded_by_id': str(current_user.id),
-                    'scope': scope,
-                    # Add LLM-generated metadata for enhanced filtering (convert lists to strings)
-                    'keywords': ', '.join(document.auto_keywords) if document.auto_keywords else '',
-                    'topics': ', '.join(document.auto_topics) if document.auto_topics else '',
-                    'content_type': document.content_type if document.content_type else 'general'
-                }
-                for chunk in chunks
-            ]
-
-            # Add to vector store
-            logger.info(f"Adding documents to vector store with provider: {provider}, scope: {scope}, user: {current_user.id}")
-            chunk_ids = await vector_store_service.add_documents(
-                texts=chunk_texts,
-                metadatas=chunk_metadatas,
-                provider=provider,
-                scope=scope,
-                user_id=current_user.id
-            )
-
-            # Save chunks to database
-            for chunk, chunk_id in zip(chunks, chunk_ids):
-                doc_chunk = DocumentChunk(
-                    document_id=document.id,
-                    content=chunk['content'],
-                    chunk_index=chunk['chunk_index'],
-                    num_tokens=chunk['num_tokens'],
-                    embedding_id=chunk_id
-                )
-                db.add(doc_chunk)
-
-            # Update document
-            document.is_processed = True
-            document.processing_status = "completed"
-            document.num_chunks = len(chunks)
-            document.num_tokens = sum(chunk['num_tokens'] for chunk in chunks)
-
-            db.commit()
-            db.refresh(document)
-
-            logger.info(f"Document processed: {file.filename} ({len(chunks)} chunks)")
-
-            return DocumentResponse(
-                id=document.uuid,
-                filename=document.filename,
-                file_type=document.file_type,
-                file_size=document.file_size,
-                title=document.title,
-                is_processed=document.is_processed,
-                processing_status=document.processing_status,
-                num_chunks=document.num_chunks,
-                uploaded_at=document.uploaded_at.isoformat(),
-                scope=document.scope,
-                auto_summary=document.auto_summary,
-                auto_keywords=document.auto_keywords,
-                auto_topics=document.auto_topics,
-                content_type=document.content_type
-            )
-
-        except Exception as e:
-            document.processing_status = "failed"
-            document.error_message = str(e)
-            db.commit()
-            logger.error(f"Document processing failed: {e}")
-
-            # Provide helpful error message for authentication issues
-            error_detail = str(e)
-            if "RBAC: access denied" in error_detail or "access denied" in error_detail.lower():
-                error_detail = (
-                    "Authentication failed with the custom LLM API. "
-                    "Please check your CUSTOM_LLM_API_KEY in the .env file. "
-                    "Alternatively, switch to Ollama by using provider='ollama' and ensure Ollama is running locally."
-                )
-
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Document processing failed: {error_detail}"
-            )
-
+        return DocumentResponse(**result)
     except HTTPException:
         raise
     except Exception as e:
@@ -253,6 +292,7 @@ async def upload_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Upload failed: {str(e)}"
         )
+
 
 @router.get("/", response_model=List[DocumentResponse])
 async def list_documents(

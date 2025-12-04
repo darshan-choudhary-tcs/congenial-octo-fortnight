@@ -9,7 +9,7 @@ from loguru import logger
 
 from app.database.db import get_db
 from app.database.models import User, Role, Permission
-from app.auth.security import require_role, get_password_hash
+from app.auth.security import require_role, get_password_hash, format_user_response
 from app.auth.schemas import UserResponse, RoleResponse
 
 router = APIRouter()
@@ -38,20 +38,10 @@ async def list_users(
 
     result = []
     for user in users:
-        roles = [role.name for role in user.roles]
-        permissions = []
-        for role in user.roles:
-            permissions.extend([perm.name for perm in role.permissions])
-
+        user_data = format_user_response(user)
         result.append(UserResponse(
-            id=user.id,
-            username=user.username,
-            email=user.email,
-            full_name=user.full_name,
-            is_active=user.is_active,
+            **user_data,
             created_at=user.created_at,
-            roles=roles,
-            permissions=list(set(permissions)),
             preferred_llm=user.preferred_llm,
             explainability_level=user.explainability_level
         ))
@@ -70,20 +60,10 @@ async def get_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    roles = [role.name for role in user.roles]
-    permissions = []
-    for role in user.roles:
-        permissions.extend([perm.name for perm in role.permissions])
-
+    user_data = format_user_response(user)
     return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        full_name=user.full_name,
-        is_active=user.is_active,
+        **user_data,
         created_at=user.created_at,
-        roles=roles,
-        permissions=list(set(permissions)),
         preferred_llm=user.preferred_llm,
         explainability_level=user.explainability_level
     )
@@ -122,20 +102,10 @@ async def create_user_admin(
     db.commit()
     db.refresh(user)
 
-    roles = [role.name for role in user.roles]
-    permissions = []
-    for role in user.roles:
-        permissions.extend([perm.name for perm in role.permissions])
-
+    user_data = format_user_response(user)
     return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        full_name=user.full_name,
-        is_active=user.is_active,
+        **user_data,
         created_at=user.created_at,
-        roles=roles,
-        permissions=list(set(permissions)),
         preferred_llm=user.preferred_llm,
         explainability_level=user.explainability_level
     )
@@ -170,20 +140,10 @@ async def update_user_admin(
     db.commit()
     db.refresh(user)
 
-    roles = [role.name for role in user.roles]
-    permissions = []
-    for role in user.roles:
-        permissions.extend([perm.name for perm in role.permissions])
-
+    user_data = format_user_response(user)
     return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        full_name=user.full_name,
-        is_active=user.is_active,
+        **user_data,
         created_at=user.created_at,
-        roles=roles,
-        permissions=list(set(permissions)),
         preferred_llm=user.preferred_llm,
         explainability_level=user.explainability_level
     )

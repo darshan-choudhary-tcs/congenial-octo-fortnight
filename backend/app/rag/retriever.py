@@ -377,6 +377,138 @@ Answer:"""
 
         return grounding_evidence
 
+    def _calculate_similarity_component(self, avg_similarity: float) -> float:
+        """
+        Calculate similarity component of confidence score.
+
+        Args:
+            avg_similarity: Average similarity from vector search
+
+        Returns:
+            Similarity score (already calibrated by vector store)
+        """
+        return avg_similarity
+
+    def _calculate_citation_component(
+        self,
+        retrieved_docs: List[Dict[str, Any]],
+        grounding_evidence: List[Dict[str, Any]]
+    ) -> float:
+        """
+        Calculate citation quality component based on how many sources were cited.
+
+        Args:
+            retrieved_docs: Retrieved documents with metadata
+            grounding_evidence: Extracted source citations
+
+        Returns:
+            Citation quality score between 0.0 and 1.0
+        """
+        if not retrieved_docs:
+            return 0.3  # Lower neutral score if no docs retrieved
+
+        citation_ratio = len(grounding_evidence) / len(retrieved_docs)
+        # Less generous than before - require good citation ratio
+        citation_diversity = min(0.2, len(grounding_evidence) * 0.05)
+        # Base score of 0.6 if any citations exist, 0.2 if none
+        base_citation = 0.6 if len(grounding_evidence) > 0 else 0.2
+        citation_score = min(1.0, base_citation + citation_ratio * 0.3 + citation_diversity)
+
+        return citation_score
+
+    def _calculate_grounding_component(self, response_text: str) -> tuple[float, int]:
+        """
+        Calculate grounding component by detecting uncertainty indicators.
+
+        Args:
+            response_text: Generated response text
+
+        Returns:
+            Tuple of (grounding_score, uncertainty_penalty_count)
+        """
+        uncertainty_phrases = [
+            "i don't have enough information",
+            "the context doesn't contain",
+            "i cannot find",
+            "unable to determine",
+            "no information is provided",
+            "cannot answer",
+            "not enough context"
+        ]
+        response_lower = response_text.lower()
+        uncertainty_penalty = sum(1 for phrase in uncertainty_phrases if phrase in response_lower)
+        # Apply stronger penalties for uncertainty
+        grounding_score = max(0.3, 1.0 - (uncertainty_penalty * 0.3))
+
+        return grounding_score, uncertainty_penalty
+
+    def _calculate_query_quality_component(
+        self,
+        retrieved_docs: List[Dict[str, Any]]
+    ) -> float:
+        """
+        Calculate query quality component to penalize gibberish queries.
+
+        Args:
+            retrieved_docs: Retrieved documents with metadata
+
+        Returns:
+            Query quality score between 0.0 and 1.0
+        """
+        query_quality_score = 1.0  # Default to high quality
+
+        if retrieved_docs and len(retrieved_docs) > 0:
+            # Extract query quality from first document (all have same quality)
+            query_quality = retrieved_docs[0].get('query_quality', {})
+            query_quality_score = query_quality.get('quality_score', 1.0)
+
+            if query_quality_score < 0.5:
+                logger.warning(
+                    f"Low query quality detected: {query_quality_score:.2f}, "
+                    f"Issues: {query_quality.get('issues', [])}"
+                )
+
+        return query_quality_score
+
+    def _combine_confidence_factors(
+        self,
+        similarity_score: float,
+        citation_score: float,
+        grounding_score: float,
+        query_quality_score: float,
+        weights: dict = None
+    ) -> float:
+        """
+        Combine confidence factors using weighted average.
+
+        Args:
+            similarity_score: Similarity component score
+            citation_score: Citation quality component score
+            grounding_score: Grounding component score
+            query_quality_score: Query quality component score
+            weights: Optional custom weights dict, defaults to standard weights
+
+        Returns:
+            Final combined confidence score between 0.0 and 1.0
+        """
+        if weights is None:
+            weights = {
+                'similarity': 0.60,
+                'citation': 0.20,
+                'grounding': 0.10,
+                'query_quality': 0.10
+            }
+
+        final_confidence = (
+            similarity_score * weights['similarity'] +
+            citation_score * weights['citation'] +
+            grounding_score * weights['grounding'] +
+            query_quality_score * weights['query_quality']
+        )
+
+        # Ensure score is between 0.0 and 1.0
+        return max(0.0, min(1.0, final_confidence))
+
     def _calculate_confidence_score(
         self,
         avg_similarity: float,
@@ -400,64 +532,28 @@ Answer:"""
         Returns:
             Confidence score between 0.0 and 1.0
         """
-        # Factor 1: Similarity Score (60% weight) - Primary indicator of retrieval quality
-        # Already calibrated by the new conservative vector store similarity calculation
-        similarity_score = avg_similarity
+        # Calculate individual components
+        similarity_score = self._calculate_similarity_component(avg_similarity)
+        citation_score = self._calculate_citation_component(retrieved_docs, grounding_evidence)
+        grounding_score, uncertainty_penalty = self._calculate_grounding_component(response_text)
+        query_quality_score = self._calculate_query_quality_component(retrieved_docs)
 
-        # Factor 2: Source Citation Quality (20% weight)
-        # How many sources were actually cited vs retrieved?
-        # Conservative scoring to prevent false confidence
-        if retrieved_docs:
-            citation_ratio = len(grounding_evidence) / len(retrieved_docs)
-            # Less generous than before - require good citation ratio
-            citation_diversity = min(0.2, len(grounding_evidence) * 0.05)
-            # Base score of 0.6 if any citations exist, 0.2 if none
-            base_citation = 0.6 if len(grounding_evidence) > 0 else 0.2
-            citation_score = min(1.0, base_citation + citation_ratio * 0.3 + citation_diversity)
-        else:
-            citation_score = 0.3  # Lower neutral score if no docs retrieved
-
-        # Factor 3: Response Grounding Indicators (10% weight)
-        # Check for strong uncertainty indicators that should lower confidence
-        uncertainty_phrases = [
-            "i don't have enough information",
-            "the context doesn't contain",
-            "i cannot find",
-            "unable to determine",
-            "no information is provided",
-            "cannot answer",
-            "not enough context"
-        ]
-        response_lower = response_text.lower()
-        uncertainty_penalty = sum(1 for phrase in uncertainty_phrases if phrase in response_lower)
-        # Apply stronger penalties for uncertainty
-        grounding_score = max(0.3, 1.0 - (uncertainty_penalty * 0.3))
-
-        # Factor 4: Query Quality (10% weight) - NEW: Penalizes gibberish queries
-        query_quality_score = 1.0  # Default to high quality
-        if retrieved_docs and len(retrieved_docs) > 0:
-            # Extract query quality from first document (all have same quality)
-            query_quality = retrieved_docs[0].get('query_quality', {})
-            query_quality_score = query_quality.get('quality_score', 1.0)
-
-            if query_quality_score < 0.5:
-                logger.warning(f"Low query quality detected: {query_quality_score:.2f}, Issues: {query_quality.get('issues', [])}")
-
-        # Weighted combination (60% similarity + 20% citation + 10% grounding + 10% query quality)
-        final_confidence = (
-            similarity_score * 0.60 +
-            citation_score * 0.20 +
-            grounding_score * 0.10 +
-            query_quality_score * 0.10
+        # Combine components with standard weights
+        final_confidence = self._combine_confidence_factors(
+            similarity_score,
+            citation_score,
+            grounding_score,
+            query_quality_score
         )
 
         # Log detailed breakdown for debugging
-        logger.info(f"Confidence breakdown: similarity={similarity_score:.3f} (60%), citation={citation_score:.3f} (20%), grounding={grounding_score:.3f} (10%), query_quality={query_quality_score:.3f} (10%) → final={final_confidence:.3f}")
+        logger.info(
+            f"Confidence breakdown: similarity={similarity_score:.3f} (60%), "
+            f"citation={citation_score:.3f} (20%), grounding={grounding_score:.3f} (10%), "
+            f"query_quality={query_quality_score:.3f} (10%) → final={final_confidence:.3f}"
+        )
         logger.info(f"  - Citations: {len(grounding_evidence)}/{len(retrieved_docs)} sources cited")
         logger.info(f"  - Uncertainty penalties: {uncertainty_penalty}")
-
-        # Ensure score is between 0.0 and 1.0
-        final_confidence = max(0.0, min(1.0, final_confidence))
 
         return final_confidence
 

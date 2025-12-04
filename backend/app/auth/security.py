@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database.db import get_db
 from app.database.models import User
-import argon2
 
 # Password hashing
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -112,3 +111,29 @@ def require_role(role_name: str):
             )
         return current_user
     return role_checker
+
+def format_user_response(user: User) -> dict:
+    """Format user data with roles and permissions for API responses
+
+    Args:
+        user: User model instance
+
+    Returns:
+        Dictionary with user data, roles, and unique permissions
+    """
+    roles = [role.name for role in user.roles]
+    permissions = list(set(
+        perm.name
+        for role in user.roles
+        for perm in role.permissions
+    ))
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "full_name": user.full_name,
+        "is_active": user.is_active,
+        "roles": roles,
+        "permissions": permissions
+    }
