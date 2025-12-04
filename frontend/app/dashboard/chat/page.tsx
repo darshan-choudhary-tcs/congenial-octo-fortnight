@@ -892,7 +892,7 @@ export default function ChatPage() {
                             </Tooltip>
                           )}
                           {message.bypass_rag && (
-                            <Tooltip title="Direct LLM response without knowledge base">
+                            <Tooltip title="This is an AI generated content. Please verify before use. Direct LLM response without knowledge base">
                               <Chip
                                 icon={<BrainIcon sx={{ fontSize: 14 }} />}
                                 label="Direct LLM"
