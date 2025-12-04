@@ -3,17 +3,49 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { documentsAPI } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { useToast } from '@/components/ui/use-toast'
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  IconButton,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  AppBar,
+  Toolbar,
+  Stack,
+  Grid,
+  Paper,
+  CircularProgress,
+  Alert,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemSecondaryAction,
+  Divider
+} from '@mui/material'
+import { useSnackbar } from '@/components/SnackbarProvider'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { FileText, Upload, Loader2, Trash2, CheckCircle, AlertCircle, Clock, Home, Globe, User, Info } from 'lucide-react'
+import {
+  Description as FileTextIcon,
+  CloudUpload as UploadIcon,
+  Delete as Trash2Icon,
+  CheckCircle as CheckCircleIcon,
+  Error as AlertCircleIcon,
+  Schedule as ClockIcon,
+  Home as HomeIcon,
+  Public as GlobeIcon,
+  Person as UserIcon,
+  Info as InfoIcon
+} from '@mui/icons-material'
 import { formatDate, formatFileSize } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
 
 interface Document {
   id: string
@@ -30,7 +62,7 @@ interface Document {
 
 export default function DocumentsPage() {
   const { user } = useAuth()
-  const { toast } = useToast()
+  const { showSnackbar } = useSnackbar()
   const router = useRouter()
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,11 +80,7 @@ export default function DocumentsPage() {
       const response = await documentsAPI.list()
       setDocuments(response.data)
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load documents',
-        variant: 'destructive',
-      })
+      showSnackbar('Failed to load documents', 'error')
     } finally {
       setLoading(false)
     }
@@ -69,27 +97,16 @@ export default function DocumentsPage() {
     formData.append('provider', provider)
 
     try {
-      // Use appropriate endpoint based on scope
       if (uploadScope === 'global' && isAdmin) {
         await documentsAPI.uploadGlobal(formData, provider)
-        toast({
-          title: 'Success',
-          description: `${file.name} uploaded to global knowledge base`,
-        })
+        showSnackbar(`${file.name} uploaded to global knowledge base`, 'success')
       } else {
         await documentsAPI.upload(formData, provider)
-        toast({
-          title: 'Success',
-          description: `${file.name} uploaded and processed successfully`,
-        })
+        showSnackbar(`${file.name} uploaded and processed successfully`, 'success')
       }
       await loadDocuments()
     } catch (error: any) {
-      toast({
-        title: 'Upload Failed',
-        description: error.response?.data?.detail || 'Failed to upload document',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to upload document', 'error')
     } finally {
       setUploading(false)
       event.target.value = ''
@@ -101,272 +118,300 @@ export default function DocumentsPage() {
 
     try {
       await documentsAPI.delete(documentId, provider)
-      toast({
-        title: 'Success',
-        description: 'Document deleted successfully',
-      })
+      showSnackbar('Document deleted successfully', 'success')
       await loadDocuments()
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to delete document',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to delete document', 'error')
     }
   }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-600" />
+        return <CheckCircleIcon sx={{ fontSize: 20, color: 'success.main' }} />
       case 'processing':
-        return <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+        return <CircularProgress size={16} sx={{ color: 'info.main' }} />
       case 'failed':
-        return <AlertCircle className="h-4 w-4 text-red-600" />
+        return <AlertCircleIcon sx={{ fontSize: 20, color: 'error.main' }} />
       default:
-        return <Clock className="h-4 w-4 text-yellow-600" />
+        return <ClockIcon sx={{ fontSize: 20, color: 'warning.main' }} />
     }
   }
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive'> = {
-      completed: 'default',
-      processing: 'secondary',
-      failed: 'destructive',
-      pending: 'secondary',
+    const colors: Record<string, any> = {
+      completed: 'success',
+      processing: 'info',
+      failed: 'error',
+      pending: 'warning',
     }
-    return <Badge variant={variants[status] || 'secondary'}>{status}</Badge>
+    return <Chip label={status} color={colors[status] || 'default'} size="small" />
   }
 
   const getScopeBadge = (scope?: string) => {
     if (scope === 'global') {
       return (
-        <Badge variant="default" className="bg-purple-600 hover:bg-purple-700">
-          <Globe className="h-3 w-3 mr-1" />
-          Global
-        </Badge>
+        <Chip
+          icon={<GlobeIcon />}
+          label="Global"
+          size="small"
+          sx={{ bgcolor: 'secondary.main', color: 'white' }}
+        />
       )
     }
     return (
-      <Badge variant="outline">
-        <User className="h-3 w-3 mr-1" />
-        Personal
-      </Badge>
+      <Chip
+        icon={<UserIcon />}
+        label="Personal"
+        variant="outlined"
+        size="small"
+      />
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <div className="bg-white dark:bg-gray-950 border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
-              <Home className="h-4 w-4 mr-2" />
-              Dashboard
-            </Button>
-            <div className="flex items-center gap-2">
-              <FileText className="h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-bold">Document Management</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="provider">Vector Store:</Label>
-              <Select value={provider} onValueChange={setProvider}>
-                <SelectTrigger id="provider" className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="custom">Custom API</SelectItem>
-                  <SelectItem value="ollama">Ollama</SelectItem>
-                </SelectContent>
+      <AppBar position="static" color="default" elevation={1}>
+        <Toolbar>
+          <Button
+            startIcon={<HomeIcon />}
+            onClick={() => router.push('/dashboard')}
+            sx={{ mr: 3 }}
+          >
+            Dashboard
+          </Button>
+          <FileTextIcon sx={{ fontSize: 28, color: 'primary.main', mr: 1 }} />
+          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700 }}>
+            Document Management
+          </Typography>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <InputLabel>Vector Store</InputLabel>
+              <Select
+                value={provider}
+                onChange={(e) => setProvider(e.target.value)}
+                label="Vector Store"
+              >
+                <MenuItem value="custom">Custom API</MenuItem>
+                <MenuItem value="ollama">Ollama</MenuItem>
               </Select>
-            </div>
+            </FormControl>
             {isAdmin && (
-              <div className="flex items-center gap-2">
-                <Label htmlFor="uploadScope">Upload To:</Label>
-                <Select value={uploadScope} onValueChange={(value: 'user' | 'global') => setUploadScope(value)}>
-                  <SelectTrigger id="uploadScope" className="w-36">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">Personal</SelectItem>
-                    <SelectItem value="global">Global KB</SelectItem>
-                  </SelectContent>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>Upload To</InputLabel>
+                <Select
+                  value={uploadScope}
+                  onChange={(e) => setUploadScope(e.target.value as 'user' | 'global')}
+                  label="Upload To"
+                >
+                  <MenuItem value="user">Personal</MenuItem>
+                  <MenuItem value="global">Global KB</MenuItem>
                 </Select>
-              </div>
+              </FormControl>
             )}
             <ThemeToggle />
-            <div>
+            <Box>
               <input
                 id="file-upload"
                 type="file"
-                className="hidden"
+                style={{ display: 'none' }}
                 accept=".pdf,.txt,.csv,.docx"
                 onChange={handleUpload}
                 disabled={uploading}
               />
-              <Button asChild disabled={uploading}>
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  {uploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      {uploadScope === 'global' && isAdmin ? 'Upload to Global KB' : 'Upload Document'}
-                    </>
-                  )}
-                </label>
+              <Button
+                component="label"
+                htmlFor="file-upload"
+                variant="contained"
+                startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
+                disabled={uploading}
+              >
+                {uploading ? 'Uploading...' : (uploadScope === 'global' && isAdmin ? 'Upload to Global KB' : 'Upload Document')}
               </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+            </Box>
+          </Stack>
+        </Toolbar>
+      </AppBar>
 
-      <div className="container mx-auto px-4 py-8">
+      <Container maxWidth="xl" sx={{ py: 4 }}>
         {/* Info Banner for Admins */}
         {isAdmin && (
-          <Card className="mb-6 bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800">
-            <CardContent className="pt-6">
-              <div className="flex gap-3">
-                <Info className="h-5 w-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="font-semibold text-purple-900 dark:text-purple-100 mb-1">
-                    Global Knowledge Base
-                  </h3>
-                  <p className="text-sm text-purple-700 dark:text-purple-300">
-                    As an admin, you can upload documents to the <strong>Global Knowledge Base</strong> which will be accessible to all users when they search.
-                    Use this for company policies, shared resources, or common documentation.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+              Global Knowledge Base
+            </Typography>
+            <Typography variant="body2">
+              As an admin, you can upload documents to the <strong>Global Knowledge Base</strong> which will be accessible to all users when they search.
+              Use this for company policies, shared resources, or common documentation.
+            </Typography>
+          </Alert>
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Documents</CardDescription>
-              <CardTitle className="text-3xl">{documents.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Personal Docs</CardDescription>
-              <CardTitle className="text-3xl text-blue-600">
-                {documents.filter((d) => d.scope !== 'global').length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Global Docs</CardDescription>
-              <CardTitle className="text-3xl text-purple-600">
-                {documents.filter((d) => d.scope === 'global').length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Chunks</CardDescription>
-              <CardTitle className="text-3xl">
-                {documents.reduce((sum, d) => sum + d.num_chunks, 0)}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Size</CardDescription>
-              <CardTitle className="text-3xl">
-                {formatFileSize(documents.reduce((sum, d) => sum + d.file_size, 0))}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
+        <Grid container spacing={2} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Total Documents
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                  {documents.length}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Personal Docs
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                  {documents.filter((d) => d.scope !== 'global').length}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Global Docs
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'secondary.main' }}>
+                  {documents.filter((d) => d.scope === 'global').length}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Total Chunks
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                  {documents.reduce((sum, d) => sum + d.num_chunks, 0)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Total Size
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                  {formatFileSize(documents.reduce((sum, d) => sum + d.file_size, 0))}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
 
         {/* Document List */}
         <Card>
-          <CardHeader>
-            <CardTitle>Documents</CardTitle>
-            <CardDescription>
-              {isAdmin
-                ? 'Upload to your personal knowledge base or the global knowledge base (shared with all users)'
-                : 'Upload PDF, TXT, CSV, or DOCX files to your personal knowledge base. Global documents are shared by admins.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          <CardContent sx={{ p: 0 }}>
+            <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+                Documents
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {isAdmin
+                  ? 'Upload to your personal knowledge base or the global knowledge base (shared with all users)'
+                  : 'Upload PDF, TXT, CSV, or DOCX files to your personal knowledge base. Global documents are shared by admins.'}
+              </Typography>
+            </Box>
+
             {loading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
+                <CircularProgress size={48} />
+              </Box>
             ) : documents.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No documents yet</h3>
-                <p className="text-muted-foreground mb-4">
+              <Box sx={{ textAlign: 'center', py: 12 }}>
+                <FileTextIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                  No documents yet
+                </Typography>
+                <Typography color="text.secondary">
                   Upload your first document to get started
-                </p>
-              </div>
+                </Typography>
+              </Box>
             ) : (
-              <ScrollArea className="h-[600px]">
-                <div className="space-y-4">
-                  {documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className="p-3 bg-primary/10 rounded-lg">
-                          <FileText className="h-6 w-6 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold truncate">{doc.title}</h3>
-                            {getStatusBadge(doc.processing_status)}
-                            {getScopeBadge(doc.scope)}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              {getStatusIcon(doc.processing_status)}
-                              {doc.filename}
-                            </span>
-                            <span>•</span>
-                            <span>{doc.file_type.toUpperCase()}</span>
-                            <span>•</span>
-                            <span>{formatFileSize(doc.file_size)}</span>
-                            {doc.num_chunks > 0 && (
-                              <>
-                                <span>•</span>
-                                <span>{doc.num_chunks} chunks</span>
-                              </>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Uploaded {formatDate(doc.uploaded_at)}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+              <List sx={{ maxHeight: 600, overflow: 'auto' }}>
+                {documents.map((doc) => (
+                  <ListItem
+                    key={doc.id}
+                    sx={{
+                      py: 2,
+                      px: 3,
+                      borderBottom: 1,
+                      borderColor: 'divider',
+                      '&:hover': { bgcolor: 'action.hover' },
+                      '&:last-child': { borderBottom: 0 },
+                    }}
+                    secondaryAction={
+                      <IconButton
+                        edge="end"
                         onClick={() => handleDelete(doc.id, doc.filename)}
+                        color="error"
                       >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                        <Trash2Icon />
+                      </IconButton>
+                    }
+                  >
+                    <ListItemIcon>
+                      <Box
+                        sx={{
+                          p: 1.5,
+                          bgcolor: 'primary.main',
+                          color: 'primary.contrastText',
+                          borderRadius: 2,
+                          display: 'flex',
+                          opacity: 0.9,
+                        }}
+                      >
+                        <FileTextIcon />
+                      </Box>
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                            {doc.title}
+                          </Typography>
+                          {getStatusBadge(doc.processing_status)}
+                          {getScopeBadge(doc.scope)}
+                        </Box>
+                      }
+                      secondary={
+                        <>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                            {getStatusIcon(doc.processing_status)}
+                            <Typography variant="body2" color="text.secondary" component="span">
+                              {doc.filename}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" component="span">
+                              • {doc.file_type.toUpperCase()} • {formatFileSize(doc.file_size)}
+                              {doc.num_chunks > 0 && ` • ${doc.num_chunks} chunks`}
+                            </Typography>
+                          </Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            Uploaded {formatDate(doc.uploaded_at)}
+                          </Typography>
+                        </>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
             )}
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </Container>
+    </Box>
   )
 }

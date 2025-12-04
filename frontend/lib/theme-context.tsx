@@ -1,6 +1,9 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react'
+import { ThemeProvider as MUIThemeProvider } from '@mui/material/styles'
+import CssBaseline from '@mui/material/CssBaseline'
+import { lightTheme, darkTheme } from './mui-theme'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -79,9 +82,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('theme', newTheme)
   }
 
+  // Select MUI theme based on resolved theme
+  const muiTheme = useMemo(
+    () => (resolvedTheme === 'dark' ? darkTheme : lightTheme),
+    [resolvedTheme]
+  )
+
+  // Prevent flash of unstyled content
+  if (!mounted) {
+    return null
+  }
+
   return (
     <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
-      {children}
+      <MUIThemeProvider theme={muiTheme}>
+        <CssBaseline />
+        {children}
+      </MUIThemeProvider>
     </ThemeContext.Provider>
   )
 }

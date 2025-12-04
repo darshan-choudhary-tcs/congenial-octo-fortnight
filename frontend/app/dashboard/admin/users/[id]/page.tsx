@@ -3,16 +3,37 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { adminAPI } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { useToast } from '@/components/ui/use-toast'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Save, Loader2, User as UserIcon, Mail, Shield, Calendar, Activity } from 'lucide-react'
+import { useSnackbar } from '@/components/SnackbarProvider'
 import { formatDate } from '@/lib/utils'
 import { useRouter, useParams } from 'next/navigation'
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Container,
+  Divider,
+  FormControl,
+  FormHelperText,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  SelectChangeEvent,
+  TextField,
+  Typography,
+} from '@mui/material'
+import {
+  ArrowBack as ArrowBackIcon,
+  Save as SaveIcon,
+  Person as PersonIcon,
+  Email as EmailIcon,
+  Security as SecurityIcon,
+  CalendarMonth as CalendarIcon,
+  Timeline as ActivityIcon,
+} from '@mui/icons-material'
 
 interface User {
   id: string
@@ -37,13 +58,13 @@ interface Role {
 
 export default function EditUserPage() {
   const { user: currentUser } = useAuth()
-  const { toast } = useToast()
+  const { showSnackbar } = useSnackbar()
   const router = useRouter()
   const params = useParams()
   const userId = params.id as string
 
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [saving, setSaving] = useState<boolean>(false)
   const [user, setUser] = useState<User | null>(null)
   const [roles, setRoles] = useState<Role[]>([])
   const [formData, setFormData] = useState({
@@ -56,11 +77,7 @@ export default function EditUserPage() {
   useEffect(() => {
     // Check admin permission
     if (currentUser && !currentUser.roles.includes('admin')) {
-      toast({
-        title: 'Access Denied',
-        description: 'You do not have permission to access this page',
-        variant: 'destructive',
-      })
+      showSnackbar('You do not have permission to access this page', 'error')
       router.push('/dashboard')
       return
     }
@@ -80,11 +97,7 @@ export default function EditUserPage() {
 
       const userData = userRes.data
       if (!userData) {
-        toast({
-          title: 'Error',
-          description: 'User not found',
-          variant: 'destructive',
-        })
+        showSnackbar('User not found', 'error')
         router.push('/dashboard/admin')
         return
       }
@@ -100,11 +113,7 @@ export default function EditUserPage() {
         is_active: userData.is_active ?? true,
       })
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to load user data',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to load user data', 'error')
       router.push('/dashboard/admin')
     } finally {
       setLoading(false)
@@ -121,41 +130,42 @@ export default function EditUserPage() {
         is_active: formData.is_active,
       })
 
-      toast({
-        title: 'Success',
-        description: 'User updated successfully',
-      })
-
+      showSnackbar('User updated successfully', 'success')
       router.push('/dashboard/admin')
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to update user',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to update user', 'error')
     } finally {
       setSaving(false)
     }
   }
 
-  const getRoleBadgeColor = (roleName: string) => {
+  const handleRoleChange = (event: SelectChangeEvent<string>) => {
+    setFormData({ ...formData, role: event.target.value })
+  }
+
+  const getRoleChipColor = (roleName: string): 'error' | 'primary' | 'success' | 'default' => {
     switch (roleName) {
       case 'admin':
-        return 'bg-red-500'
+        return 'error'
       case 'analyst':
-        return 'bg-blue-500'
+        return 'primary'
       case 'viewer':
-        return 'bg-green-500'
+        return 'success'
       default:
-        return 'bg-gray-500'
+        return 'default'
     }
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
+      >
+        <CircularProgress size={48} />
+      </Box>
     )
   }
 
@@ -164,216 +174,248 @@ export default function EditUserPage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
-      <div className="mb-6">
+      <Box sx={{ mb: 4 }}>
         <Button
-          variant="ghost"
+          startIcon={<ArrowBackIcon />}
           onClick={() => router.push('/dashboard/admin')}
-          className="mb-4"
+          sx={{ mb: 2 }}
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Admin
         </Button>
-        <h1 className="text-3xl font-bold">Edit User</h1>
-        <p className="text-muted-foreground">Update user information and permissions</p>
-      </div>
+        <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
+          Edit User
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Update user information and permissions
+        </Typography>
+      </Box>
 
-      <div className="grid gap-6">
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {/* User Info Card */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserIcon className="h-5 w-5" />
-              User Information
-            </CardTitle>
-            <CardDescription>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <PersonIcon />
+              <Typography variant="h6" component="h2">
+                User Information
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               View and edit basic user information
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Username (Read-only) */}
-            <div>
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                value={user.username}
-                disabled
-                className="bg-muted"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Username cannot be changed
-              </p>
-            </div>
+            </Typography>
 
-            {/* Email */}
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="email"
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* Username (Read-only) */}
+              <Box>
+                <TextField
+                  fullWidth
+                  label="Username"
+                  value={user.username}
+                  disabled
+                  helperText="Username cannot be changed"
+                />
+              </Box>
+
+              {/* Email */}
+              <Box>
+                <TextField
+                  fullWidth
+                  label="Email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="pl-10"
                   placeholder="user@example.com"
+                  InputProps={{
+                    startAdornment: <EmailIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+                  }}
                 />
-              </div>
-            </div>
+              </Box>
 
-            {/* Full Name */}
-            <div>
-              <Label htmlFor="full_name">Full Name</Label>
-              <Input
-                id="full_name"
-                value={formData.full_name}
-                onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                placeholder="John Doe"
-              />
-            </div>
+              {/* Full Name */}
+              <Box>
+                <TextField
+                  fullWidth
+                  label="Full Name"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                  placeholder="John Doe"
+                />
+              </Box>
+            </Box>
           </CardContent>
         </Card>
 
         {/* Role & Permissions Card */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Role & Permissions
-            </CardTitle>
-            <CardDescription>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <SecurityIcon />
+              <Typography variant="h6" component="h2">
+                Role & Permissions
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Assign user role and manage access permissions
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Role Selection */}
-            <div>
-              <Label htmlFor="role">Role</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value) => setFormData({ ...formData, role: value })}
-              >
-                <SelectTrigger id="role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map((role) => (
-                    <SelectItem key={role.id} value={role.name}>
-                      <div className="flex items-center gap-2">
-                        <Badge className={getRoleBadgeColor(role.name)}>
-                          {role.name}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          - {role.description}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            </Typography>
 
-            {/* Show permissions for selected role */}
-            {formData.role && (
-              <div>
-                <Label>Permissions</Label>
-                <div className="mt-2 p-4 border rounded-lg bg-muted/50">
-                  <div className="flex flex-wrap gap-2">
-                    {roles
-                      .find((r) => r.name === formData.role)
-                      ?.permissions.map((permission) => (
-                        <Badge key={permission} variant="secondary">
-                          {permission}
-                        </Badge>
-                      ))}
-                  </div>
-                </div>
-              </div>
-            )}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* Role Selection */}
+              <FormControl fullWidth>
+                <InputLabel id="role-label">Role</InputLabel>
+                <Select
+                  labelId="role-label"
+                  id="role"
+                  value={formData.role}
+                  label="Role"
+                  onChange={handleRoleChange}
+                >
+                  {roles.map((role) => (
+                    <MenuItem key={role.id} value={role.name}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                          label={role.name}
+                          color={getRoleChipColor(role.name)}
+                          size="small"
+                        />
+                        <Typography variant="body2" color="text.secondary">
+                          - {role.description}
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {/* Show permissions for selected role */}
+              {formData.role && (
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Permissions
+                  </Typography>
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 2, bgcolor: 'action.hover' }}
+                  >
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {roles
+                        .find((r) => r.name === formData.role)
+                        ?.permissions.map((permission) => (
+                          <Chip
+                            key={permission}
+                            label={permission}
+                            size="small"
+                            variant="outlined"
+                          />
+                        ))}
+                    </Box>
+                  </Paper>
+                </Box>
+              )}
+            </Box>
           </CardContent>
         </Card>
 
         {/* Account Status Card */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Account Status
-            </CardTitle>
-            <CardDescription>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <ActivityIcon />
+              <Typography variant="h6" component="h2">
+                Account Status
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Manage user account status and activity
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Active Status */}
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Account Status</Label>
-                <p className="text-sm text-muted-foreground">
-                  {formData.is_active ? 'Active - User can log in' : 'Inactive - User cannot log in'}
-                </p>
-              </div>
-              <Button
-                variant={formData.is_active ? 'destructive' : 'default'}
-                onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
-              >
-                {formData.is_active ? 'Deactivate' : 'Activate'}
-              </Button>
-            </div>
+            </Typography>
 
-            {/* Account Info */}
-            <div className="space-y-2 pt-4 border-t">
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Created:</span>
-                <span className="font-medium">{formatDate(user.created_at)}</span>
-              </div>
-              {user.last_login && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Last Login:</span>
-                  <span className="font-medium">{formatDate(user.last_login)}</span>
-                </div>
-              )}
-            </div>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* Active Status */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Account Status
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {formData.is_active ? 'Active - User can log in' : 'Inactive - User cannot log in'}
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  color={formData.is_active ? 'error' : 'primary'}
+                  onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
+                >
+                  {formData.is_active ? 'Deactivate' : 'Activate'}
+                </Button>
+              </Box>
+
+              <Divider />
+
+              {/* Account Info */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CalendarIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                  <Typography variant="body2" color="text.secondary">
+                    Created:
+                  </Typography>
+                  <Typography variant="body2" fontWeight="medium">
+                    {formatDate(user.created_at)}
+                  </Typography>
+                </Box>
+                {user.last_login && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <ActivityIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Last Login:
+                    </Typography>
+                    <Typography variant="body2" fontWeight="medium">
+                      {formatDate(user.last_login)}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </Box>
           </CardContent>
         </Card>
 
         {/* Action Buttons */}
-        <div className="flex gap-4">
+        <Box sx={{ display: 'flex', gap: 2 }}>
           <Button
+            variant="contained"
+            color="primary"
+            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
             onClick={handleSave}
             disabled={saving || user.username === currentUser?.username}
-            className="flex-1"
+            fullWidth
           >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </>
-            )}
+            {saving ? 'Saving...' : 'Save Changes'}
           </Button>
           <Button
-            variant="outline"
+            variant="outlined"
             onClick={() => router.push('/dashboard/admin')}
             disabled={saving}
+            sx={{ minWidth: 120 }}
           >
             Cancel
           </Button>
-        </div>
+        </Box>
 
         {user.username === currentUser?.username && (
-          <p className="text-sm text-amber-600 dark:text-amber-500 text-center">
-            ⚠️ You cannot modify your own account. Ask another admin for assistance.
-          </p>
+          <Paper
+            sx={{
+              p: 2,
+              bgcolor: 'warning.light',
+              color: 'warning.dark',
+              textAlign: 'center',
+            }}
+          >
+            <Typography variant="body2">
+              ⚠️ You cannot modify your own account. Ask another admin for assistance.
+            </Typography>
+          </Paper>
         )}
-      </div>
-    </div>
+      </Box>
+    </Container>
   )
 }

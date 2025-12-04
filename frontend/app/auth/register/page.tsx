@@ -4,12 +4,21 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  TextField,
+  Card,
+  CardContent,
+  Alert,
+  AppBar,
+  Toolbar,
+  Stack
+} from '@mui/material'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { Brain, ArrowRight } from 'lucide-react'
+import { Psychology as BrainIcon } from '@mui/icons-material'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -39,100 +48,145 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <Box sx={{ minHeight: '100vh' }}>
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 z-50">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push('/')}>
-            <Brain className="h-8 w-8 text-blue-600" />
-            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+      <AppBar
+        position="fixed"
+        sx={{
+          backgroundColor: 'background.paper',
+          backdropFilter: 'blur(10px)',
+          boxShadow: 1
+        }}
+      >
+        <Toolbar>
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, cursor: 'pointer' }}
+            onClick={() => router.push('/')}
+          >
+            <BrainIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}
+            >
               AI RAG Platform
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={2} alignItems="center">
             <ThemeToggle />
-            <Button variant="ghost" onClick={() => router.push('/auth/login')}>
+            <Button
+              variant="text"
+              onClick={() => router.push('/auth/login')}
+            >
               Login
             </Button>
-          </div>
-        </div>
-      </nav>
+          </Stack>
+        </Toolbar>
+      </AppBar>
 
       {/* Register Form */}
-      <div className="flex items-center justify-center min-h-screen p-4 pt-24">
-        <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold">Register</CardTitle>
-          <CardDescription>
-            Create a new account to get started
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
-                {error}
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                required
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="full_name">Full Name (Optional)</Label>
-              <Input
-                id="full_name"
-                type="text"
-                value={formData.full_name}
-                onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-                minLength={6}
-                disabled={loading}
-              />
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating account...' : 'Register'}
-            </Button>
-            <div className="text-sm text-center text-muted-foreground">
-              Already have an account?{' '}
-              <Link href="/auth/login" className="text-primary hover:underline">
-                Login
-              </Link>
-            </div>
-          </CardFooter>
-        </form>
-      </Card>
-      </div>
-    </div>
+      <Container maxWidth="sm">
+        <Box
+          sx={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            py: 12
+          }}
+        >
+          <Card sx={{ width: '100%' }}>
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                Register
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                Create a new account to get started
+              </Typography>
+
+              <Box component="form" onSubmit={handleSubmit}>
+                <Stack spacing={3}>
+                  {error && (
+                    <Alert severity="error">{error}</Alert>
+                  )}
+
+                  <TextField
+                    fullWidth
+                    label="Username"
+                    type="text"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    required
+                    disabled={loading}
+                    autoComplete="username"
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                    disabled={loading}
+                    autoComplete="email"
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Full Name (Optional)"
+                    type="text"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    disabled={loading}
+                    autoComplete="name"
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required
+                    disabled={loading}
+                    autoComplete="new-password"
+                    inputProps={{ minLength: 6 }}
+                    helperText="Minimum 6 characters"
+                  />
+
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    fullWidth
+                    disabled={loading}
+                  >
+                    {loading ? 'Creating account...' : 'Register'}
+                  </Button>
+
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                    Already have an account?{' '}
+                    <Link href="/auth/login" style={{ color: 'inherit', textDecoration: 'none' }}>
+                      <Typography
+                        component="span"
+                        color="primary"
+                        sx={{ fontWeight: 600, '&:hover': { textDecoration: 'underline' } }}
+                      >
+                        Login
+                      </Typography>
+                    </Link>
+                  </Typography>
+                </Stack>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      </Container>
+    </Box>
   )
 }

@@ -3,22 +3,55 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { chatAPI, documentsAPI } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
-import { useToast } from '@/components/ui/use-toast'
+import { useSnackbar } from '@/components/SnackbarProvider'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { MessageSquare, Send, Loader2, FileText, Brain, TrendingUp, CheckCircle, Upload, Home, Trash2, Search, Zap, Shield, Lightbulb } from 'lucide-react'
 import { formatDate, getConfidenceColor, getConfidenceLabel } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import { useRouter } from 'next/navigation'
+import {
+  Box,
+  Button,
+  TextField,
+  Paper,
+  Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  IconButton,
+  Chip,
+  LinearProgress,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Checkbox,
+  FormControlLabel,
+  CircularProgress,
+  Divider,
+  AppBar,
+  Toolbar,
+  Container,
+} from '@mui/material'
+import {
+  Chat as MessageSquareIcon,
+  Send as SendIcon,
+  Upload as UploadIcon,
+  Home as HomeIcon,
+  Delete as DeleteIcon,
+  Search as SearchIcon,
+  Psychology as BrainIcon,
+  Lightbulb as LightbulbIcon,
+  Shield as ShieldIcon,
+  CheckCircle as CheckCircleIcon,
+  ExpandMore as ExpandMoreIcon,
+  Description as FileTextIcon,
+  Add as AddIcon,
+} from '@mui/icons-material'
 
 interface Message {
   id: string
@@ -56,7 +89,7 @@ interface StreamingState {
 
 export default function ChatPage() {
   const { user } = useAuth()
-  const { toast } = useToast()
+  const { showSnackbar } = useSnackbar()
   const router = useRouter()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [currentConversation, setCurrentConversation] = useState<string | null>(null)
@@ -67,6 +100,7 @@ export default function ChatPage() {
   const [provider, setProvider] = useState(user?.preferred_llm || 'ollama')
   const [includeGrounding, setIncludeGrounding] = useState(true)
   const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(true)
   const [streamingState, setStreamingState] = useState<StreamingState>({
     isStreaming: false,
     currentAgent: null,
@@ -115,11 +149,7 @@ export default function ChatPage() {
       setMessages(response.data)
     } catch (error) {
       console.error('Failed to load messages:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load messages',
-        variant: 'destructive',
-      })
+      showSnackbar('Failed to load messages', 'error')
     }
   }
 
@@ -274,13 +304,12 @@ export default function ChatPage() {
 
         setMessages((prev) => [...prev.filter((m) => m.id !== tempUserMsg.id), tempUserMsg, assistantMsg])
 
-        toast({
-          title: finalResult.low_confidence_warning ? '⚠️ Low Confidence Response' : 'Response Generated',
-          description: finalResult.low_confidence_warning
-            ? `No relevant knowledge base content found (${(finalResult.confidence_score * 100).toFixed(1)}% confidence). Response is from AI without document context.`
-            : `Confidence: ${getConfidenceLabel(finalResult.confidence_score)} (${(finalResult.confidence_score * 100).toFixed(1)}%)`,
-          variant: finalResult.low_confidence_warning ? 'destructive' : 'default',
-        })
+        showSnackbar(
+          finalResult.low_confidence_warning
+            ? `⚠️ Low Confidence Response - No relevant knowledge base content found (${(finalResult.confidence_score * 100).toFixed(1)}% confidence). Response is from AI without document context.`
+            : `Response Generated - Confidence: ${getConfidenceLabel(finalResult.confidence_score)} (${(finalResult.confidence_score * 100).toFixed(1)}%)`,
+          finalResult.low_confidence_warning ? 'warning' : 'success'
+        )
 
         // Reload conversations if new
         if (conversationId && !currentConversation) {
@@ -290,16 +319,9 @@ export default function ChatPage() {
 
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        toast({
-          title: 'Cancelled',
-          description: 'Message sending was cancelled',
-        })
+        showSnackbar('Message sending was cancelled', 'info')
       } else {
-        toast({
-          title: 'Error',
-          description: error.message || 'Failed to send message',
-          variant: 'destructive',
-        })
+        showSnackbar(error.message || 'Failed to send message', 'error')
       }
       setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id))
     } finally {
@@ -331,10 +353,7 @@ export default function ChatPage() {
     try {
       await chatAPI.deleteConversation(conversationId)
 
-      toast({
-        title: 'Conversation Deleted',
-        description: 'The conversation has been successfully deleted',
-      })
+      showSnackbar('Conversation deleted successfully', 'success')
 
       // If the deleted conversation was the current one, clear it
       if (currentConversation === conversationId) {
@@ -345,11 +364,7 @@ export default function ChatPage() {
       // Reload conversations list
       await loadConversations()
     } catch (error: any) {
-      toast({
-        title: 'Delete Failed',
-        description: error.response?.data?.detail || 'Failed to delete conversation',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to delete conversation', 'error')
     }
   }
 
@@ -364,16 +379,9 @@ export default function ChatPage() {
 
     try {
       await documentsAPI.upload(formData, provider)
-      toast({
-        title: 'Document Uploaded',
-        description: `${file.name} has been processed and added to the knowledge base`,
-      })
+      showSnackbar(`${file.name} has been processed and added to the knowledge base`, 'success')
     } catch (error: any) {
-      toast({
-        title: 'Upload Failed',
-        description: error.response?.data?.detail || 'Failed to upload document',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to upload document', 'error')
     } finally {
       setUploadingDoc(false)
       if (fileInputRef.current) {
@@ -383,322 +391,445 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <Box sx={{ display: 'flex', height: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <div className="bg-white dark:bg-gray-950 border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
-              <Home className="h-4 w-4 mr-2" />
-              Dashboard
-            </Button>
-            <Separator orientation="vertical" className="h-6" />
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-bold">RAG Chat</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="provider">LLM Provider:</Label>
-              <Select value={provider} onValueChange={setProvider} disabled={loading}>
-                <SelectTrigger id="provider" className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="custom">Custom API</SelectItem>
-                  <SelectItem value="ollama">Ollama</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <ThemeToggle />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingDoc}
+      <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+        <Toolbar>
+          <Button
+            color="inherit"
+            startIcon={<HomeIcon />}
+            onClick={() => router.push('/dashboard')}
+            sx={{ mr: 2 }}
+          >
+            Dashboard
+          </Button>
+          <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.3)' }} />
+          <MessageSquareIcon sx={{ mr: 1 }} />
+          <Typography variant="h6" component="h1" sx={{ flexGrow: 1 }}>
+            RAG Chat
+          </Typography>
+          <FormControl size="small" sx={{ minWidth: 140, mr: 2 }}>
+            <InputLabel sx={{ color: 'inherit' }}>LLM Provider</InputLabel>
+            <Select
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              disabled={loading}
+              label="LLM Provider"
+              sx={{ color: 'inherit', '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' } }}
             >
-              {uploadingDoc ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4 mr-2" />
-              )}
-              Upload Doc
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              accept=".pdf,.txt,.csv,.docx"
-              onChange={handleFileUpload}
-            />
-          </div>
-        </div>
-      </div>
+              <MenuItem value="custom">Custom API</MenuItem>
+              <MenuItem value="ollama">Ollama</MenuItem>
+            </Select>
+          </FormControl>
+          <ThemeToggle />
+          <Button
+            color="inherit"
+            startIcon={uploadingDoc ? <CircularProgress size={20} color="inherit" /> : <UploadIcon />}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingDoc}
+            sx={{ ml: 2 }}
+          >
+            Upload Doc
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            style={{ display: 'none' }}
+            accept=".pdf,.txt,.csv,.docx"
+            onChange={handleFileUpload}
+          />
+        </Toolbar>
+      </AppBar>
 
-      <div className="container mx-auto px-4 py-6 h-[calc(100vh-88px)]">
-        <div className="grid grid-cols-12 gap-6 h-full">
-          {/* Sidebar - Conversations */}
-          <div className="col-span-3">
-            <Card className="h-full flex flex-col">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Conversations</span>
-                  <Button size="sm" onClick={handleNewConversation}>
-                    New
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 p-0">
-                <ScrollArea className="h-full">
-                  {loadingConversations ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : conversations.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <p>No conversations yet</p>
-                      <p className="text-sm mt-2">Start chatting to create one</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1 p-4">
-                      {conversations.map((conv) => (
-                        <div
-                          key={conv.id}
-                          className={`p-3 rounded-lg cursor-pointer transition-colors group relative ${
-                            currentConversation === conv.id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'hover:bg-muted'
-                          }`}
-                          onClick={() => setCurrentConversation(conv.id)}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{conv.title}</p>
-                              <p className={`text-xs mt-1 ${
-                                currentConversation === conv.id ? 'opacity-70' : 'text-muted-foreground'
-                              }`}>
-                                {conv.message_count} messages • {formatDate(conv.updated_at)}
-                              </p>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={`h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity ${
-                                currentConversation === conv.id
-                                  ? 'hover:bg-primary-foreground/20 text-primary-foreground'
-                                  : 'hover:bg-destructive hover:text-destructive-foreground'
-                              }`}
-                              onClick={(e) => handleDeleteConversation(conv.id, e)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main Chat Area */}
-          <div className="col-span-9 flex flex-col gap-4 h-full overflow-hidden">
-            {/* Messages */}
-            <Card className="flex-1 flex flex-col overflow-hidden">
-              <CardContent className="flex-1 p-0 overflow-hidden">
-                <ScrollArea className="h-full p-6">
-                  {messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                      <Brain className="h-16 w-16 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Start a Conversation</h3>
-                      <p className="text-muted-foreground max-w-md">
-                        Ask questions about your documents using RAG and multi-agent AI system.
-                        Responses include source citations and confidence scores.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {messages.map((message) => (
-                        <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[80%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'} rounded-lg p-4`}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-semibold text-sm">
-                                {message.role === 'user' ? 'You' : 'AI Assistant'}
-                              </span>
-                              {message.confidence_score !== undefined && (
-                                <Badge variant="outline" className={getConfidenceColor(message.confidence_score)}>
-                                  {getConfidenceLabel(message.confidence_score)}
-                                </Badge>
-                              )}
-                              {message.low_confidence_warning && (
-                                <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600">
-                                  Low KB Match
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="prose prose-sm max-w-none dark:prose-invert">
-                              <ReactMarkdown>{message.content}</ReactMarkdown>
-                            </div>
-                            {message.sources && message.sources.length > 0 && (
-                              <div className="mt-4 pt-4 border-t border-border">
-                                <Accordion type="single" collapsible>
-                                  <AccordionItem value="sources">
-                                    <AccordionTrigger className="text-sm">
-                                      <div className="flex items-center gap-2">
-                                        <FileText className="h-4 w-4" />
-                                        Sources ({message.sources.length})
-                                      </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                      <div className="space-y-2">
-                                        {message.sources.map((source, idx) => (
-                                          <div key={idx} className="text-xs p-2 bg-background rounded border">
-                                            <div className="flex items-center justify-between mb-1">
-                                              <span className="font-semibold">Source {source.source_number}</span>
-                                              <Badge variant="secondary">
-                                                {(source.similarity * 100).toFixed(1)}% match
-                                              </Badge>
-                                            </div>
-                                            <p className="text-muted-foreground">{source.content}</p>
-                                            {source.metadata && (
-                                              <p className="mt-1 text-muted-foreground">
-                                                {source.metadata.document_title}
-                                              </p>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </AccordionContent>
-                                  </AccordionItem>
-                                </Accordion>
-                              </div>
-                            )}
-                            <p className="text-xs opacity-70 mt-2">{formatDate(message.created_at)}</p>
-                          </div>
-                        </div>
-                      ))}
-                      {streamingState.isStreaming && (
-                        <div className="flex justify-start">
-                          <div className="bg-muted rounded-lg p-4 max-w-[80%]">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                              <span className="text-sm font-semibold">Processing your request...</span>
-                            </div>
-
-                            <div className="space-y-2">
-                              {streamingState.agentStatuses.map((status, idx) => {
-                                const isActive = streamingState.currentAgent === status.agent
-                                const icons: Record<string, any> = {
-                                  'ResearchAgent': Search,
-                                  'RAGGenerator': Brain,
-                                  'GroundingAgent': Shield,
-                                  'ExplainabilityAgent': Lightbulb
-                                }
-                                const Icon = icons[status.agent] || Zap
-
-                                return (
-                                  <div
-                                    key={idx}
-                                    className={`flex items-start gap-2 text-xs p-2 rounded transition-all ${
-                                      isActive ? 'bg-primary/10 border border-primary' :
-                                      status.status === 'completed' ? 'bg-green-50 border border-green-200' :
-                                      status.status === 'failed' ? 'bg-red-50 border border-red-200' :
-                                      'bg-background border border-border'
-                                    }`}
-                                  >
-                                    {status.status === 'started' ? (
-                                      <Loader2 className="h-3 w-3 mt-0.5 animate-spin text-primary flex-shrink-0" />
-                                    ) : status.status === 'completed' ? (
-                                      <CheckCircle className="h-3 w-3 mt-0.5 text-green-600 flex-shrink-0" />
-                                    ) : (
-                                      <Icon className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-medium">{status.agent}</span>
-                                        {status.result && (
-                                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                                            {status.result.document_count !== undefined &&
-                                              `${status.result.document_count} docs`}
-                                            {status.result.confidence !== undefined &&
-                                              `${(status.result.confidence * 100).toFixed(0)}%`}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <p className="text-muted-foreground mt-0.5">{status.message}</p>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-
-                            {streamingState.accumulatedResponse && (
-                              <div className="mt-3 pt-3 border-t border-border">
-                                <p className="text-xs text-muted-foreground mb-2">Preview:</p>
-                                <div className="prose prose-sm max-w-none">
-                                  <ReactMarkdown>
-                                    {streamingState.accumulatedResponse.substring(0, 200) +
-                                    (streamingState.accumulatedResponse.length > 200 ? '...' : '')}
-                                  </ReactMarkdown>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      {loading && !streamingState.isStreaming && (
-                        <div className="flex justify-start">
-                          <div className="bg-muted rounded-lg p-4 flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-sm">AI is thinking...</span>
-                          </div>
-                        </div>
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-
-            {/* Input Area */}
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={includeGrounding}
-                      onChange={(e) => setIncludeGrounding(e.target.checked)}
-                      className="rounded"
+      {/* Sidebar - Conversations */}
+      <Drawer
+        variant="persistent"
+        anchor="left"
+        open={drawerOpen}
+        sx={{
+          width: 300,
+          flexShrink: 0,
+          '& .MuiDrawer-paper': {
+            width: 300,
+            boxSizing: 'border-box',
+            mt: 8,
+            height: 'calc(100% - 64px)',
+          },
+        }}
+      >
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">Conversations</Typography>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={handleNewConversation}
+          >
+            New
+          </Button>
+        </Box>
+        <Divider />
+        <Box sx={{ overflow: 'auto', flexGrow: 1 }}>
+          {loadingConversations ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : conversations.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4, px: 2, color: 'text.secondary' }}>
+              <Typography>No conversations yet</Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Start chatting to create one
+              </Typography>
+            </Box>
+          ) : (
+            <List>
+              {conversations.map((conv) => (
+                <ListItem
+                  key={conv.id}
+                  disablePadding
+                  secondaryAction={
+                    <IconButton
+                      edge="end"
+                      onClick={(e) => handleDeleteConversation(conv.id, e)}
+                      size="small"
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  }
+                >
+                  <ListItemButton
+                    selected={currentConversation === conv.id}
+                    onClick={() => setCurrentConversation(conv.id)}
+                  >
+                    <ListItemText
+                      primary={conv.title}
+                      secondary={`${conv.message_count} messages • ${formatDate(conv.updated_at)}`}
+                      primaryTypographyProps={{ noWrap: true }}
+                      secondaryTypographyProps={{ variant: 'caption' }}
                     />
-                    <span>Include Grounding Verification</span>
-                  </label>
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Ask a question about your documents..."
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                    disabled={loading}
-                    className="flex-1"
-                  />
-                  <Button onClick={handleSendMessage} disabled={loading || !input.trim()}>
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </Box>
+      </Drawer>
+
+      {/* Main Chat Area */}
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          ml: drawerOpen ? 0 : 0,
+          mt: 8,
+          p: 3,
+          display: 'flex',
+          flexDirection: 'column',
+          height: 'calc(100vh - 64px)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Messages */}
+        <Paper
+          elevation={2}
+          sx={{
+            flexGrow: 1,
+            mb: 2,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <Box
+            sx={{
+              flexGrow: 1,
+              overflow: 'auto',
+              p: 3,
+            }}
+          >
+            {messages.length === 0 ? (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  textAlign: 'center',
+                }}
+              >
+                <BrainIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" gutterBottom>
+                  Start a Conversation
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 500 }}>
+                  Ask questions about your documents using RAG and multi-agent AI system.
+                  Responses include source citations and confidence scores.
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {messages.map((message) => (
+                  <Box
+                    key={message.id}
+                    sx={{
+                      display: 'flex',
+                      justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                    }}
+                  >
+                    <Paper
+                      elevation={1}
+                      sx={{
+                        maxWidth: '80%',
+                        p: 2,
+                        bgcolor: message.role === 'user' ? 'primary.main' : 'background.paper',
+                        color: message.role === 'user' ? 'primary.contrastText' : 'text.primary',
+                        border: message.role === 'user' ? 'none' : 1,
+                        borderColor: 'divider',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Typography variant="subtitle2" fontWeight="bold">
+                          {message.role === 'user' ? 'You' : 'AI Assistant'}
+                        </Typography>
+                        {message.confidence_score !== undefined && (
+                          <Chip
+                            label={getConfidenceLabel(message.confidence_score)}
+                            size="small"
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                        )}
+                        {message.low_confidence_warning && (
+                          <Chip
+                            label="Low KB Match"
+                            size="small"
+                            color="warning"
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                        )}
+                      </Box>
+                      <Box sx={{ '& p': { m: 0 }, '& pre': { overflowX: 'auto' } }}>
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </Box>
+                      {message.sources && message.sources.length > 0 && (
+                        <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                          <Accordion>
+                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <FileTextIcon fontSize="small" />
+                                <Typography variant="body2">
+                                  Sources ({message.sources.length})
+                                </Typography>
+                              </Box>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                {message.sources.map((source, idx) => (
+                                  <Paper
+                                    key={idx}
+                                    variant="outlined"
+                                    sx={{ p: 1, bgcolor: 'background.default' }}
+                                  >
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        mb: 0.5,
+                                      }}
+                                    >
+                                      <Typography variant="caption" fontWeight="bold">
+                                        Source {source.source_number}
+                                      </Typography>
+                                      <Chip
+                                        label={`${(source.similarity * 100).toFixed(1)}% match`}
+                                        size="small"
+                                        sx={{ height: 18, fontSize: '0.65rem' }}
+                                      />
+                                    </Box>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {source.content}
+                                    </Typography>
+                                    {source.metadata && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                                        {source.metadata.document_title}
+                                      </Typography>
+                                    )}
+                                  </Paper>
+                                ))}
+                              </Box>
+                            </AccordionDetails>
+                          </Accordion>
+                        </Box>
+                      )}
+                      <Typography variant="caption" sx={{ opacity: 0.7, mt: 1, display: 'block' }}>
+                        {formatDate(message.created_at)}
+                      </Typography>
+                    </Paper>
+                  </Box>
+                ))}
+                {streamingState.isStreaming && (
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                    <Paper
+                      elevation={1}
+                      sx={{
+                        maxWidth: '80%',
+                        p: 2,
+                        bgcolor: 'background.paper',
+                        border: 1,
+                        borderColor: 'divider',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <CircularProgress size={16} />
+                        <Typography variant="body2" fontWeight="bold">
+                          Processing your request...
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {streamingState.agentStatuses.map((status, idx) => {
+                          const isActive = streamingState.currentAgent === status.agent
+                          const icons: Record<string, any> = {
+                            'ResearchAgent': SearchIcon,
+                            'RAGGenerator': BrainIcon,
+                            'GroundingAgent': ShieldIcon,
+                            'ExplainabilityAgent': LightbulbIcon
+                          }
+                          const Icon = icons[status.agent] || BrainIcon
+
+                          return (
+                            <Paper
+                              key={idx}
+                              variant="outlined"
+                              sx={{
+                                p: 1,
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 1,
+                                bgcolor: isActive
+                                  ? 'primary.light'
+                                  : status.status === 'completed'
+                                  ? 'success.light'
+                                  : status.status === 'failed'
+                                  ? 'error.light'
+                                  : 'background.default',
+                                borderColor: isActive
+                                  ? 'primary.main'
+                                  : status.status === 'completed'
+                                  ? 'success.main'
+                                  : status.status === 'failed'
+                                  ? 'error.main'
+                                  : 'divider',
+                              }}
+                            >
+                              {status.status === 'started' ? (
+                                <CircularProgress size={12} sx={{ mt: 0.25 }} />
+                              ) : status.status === 'completed' ? (
+                                <CheckCircleIcon sx={{ fontSize: 12, mt: 0.25, color: 'success.main' }} />
+                              ) : (
+                                <Icon sx={{ fontSize: 12, mt: 0.25 }} />
+                              )}
+                              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography variant="caption" fontWeight="bold">
+                                    {status.agent}
+                                  </Typography>
+                                  {status.result && (
+                                    <Chip
+                                      label={
+                                        status.result.document_count !== undefined
+                                          ? `${status.result.document_count} docs`
+                                          : status.result.confidence !== undefined
+                                          ? `${(status.result.confidence * 100).toFixed(0)}%`
+                                          : ''
+                                      }
+                                      size="small"
+                                      sx={{ height: 16, fontSize: '0.6rem' }}
+                                    />
+                                  )}
+                                </Box>
+                                <Typography variant="caption" color="text.secondary">
+                                  {status.message}
+                                </Typography>
+                              </Box>
+                            </Paper>
+                          )
+                        })}
+                      </Box>
+
+                      {streamingState.accumulatedResponse && (
+                        <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                            Preview:
+                          </Typography>
+                          <Box sx={{ '& p': { m: 0 }, fontSize: '0.875rem' }}>
+                            <ReactMarkdown>
+                              {streamingState.accumulatedResponse.substring(0, 200) +
+                                (streamingState.accumulatedResponse.length > 200 ? '...' : '')}
+                            </ReactMarkdown>
+                          </Box>
+                        </Box>
+                      )}
+                    </Paper>
+                  </Box>
+                )}
+                {loading && !streamingState.isStreaming && (
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                    <Paper elevation={1} sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CircularProgress size={16} />
+                      <Typography variant="body2">AI is thinking...</Typography>
+                    </Paper>
+                  </Box>
+                )}
+                <div ref={messagesEndRef} />
+              </Box>
+            )}
+          </Box>
+        </Paper>
+
+        {/* Input Area */}
+        <Paper elevation={2} sx={{ p: 2 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={includeGrounding}
+                onChange={(e) => setIncludeGrounding(e.target.checked)}
+                size="small"
+              />
+            }
+            label={
+              <Typography variant="body2">Include Grounding Verification</Typography>
+            }
+            sx={{ mb: 1 }}
+          />
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <TextField
+              fullWidth
+              placeholder="Ask a question about your documents..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+              disabled={loading}
+              variant="outlined"
+              size="small"
+            />
+            <IconButton
+              color="primary"
+              onClick={handleSendMessage}
+              disabled={loading || !input.trim()}
+              sx={{
+                bgcolor: 'primary.main',
+                color: 'white',
+                '&:hover': { bgcolor: 'primary.dark' },
+                '&:disabled': { bgcolor: 'action.disabledBackground' },
+              }}
+            >
+              {loading ? <CircularProgress size={24} color="inherit" /> : <SendIcon />}
+            </IconButton>
+          </Box>
+        </Paper>
+      </Box>
+    </Box>
   )
 }

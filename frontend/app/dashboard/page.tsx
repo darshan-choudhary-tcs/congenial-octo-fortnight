@@ -3,18 +3,41 @@
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useToast } from '@/components/ui/use-toast'
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  Card,
+  CardContent,
+  Grid,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  AppBar,
+  Toolbar,
+  Stack,
+  Paper,
+  CircularProgress
+} from '@mui/material'
+import { useSnackbar } from '@/components/SnackbarProvider'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { Brain, FileText, MessageSquare, Settings, Users, BarChart3, LogOut, Code } from 'lucide-react'
+import {
+  Psychology as BrainIcon,
+  Description as FileTextIcon,
+  Chat as MessageSquareIcon,
+  Group as UsersIcon,
+  BarChart as BarChart3Icon,
+  Logout as LogOutIcon,
+  Code as CodeIcon
+} from '@mui/icons-material'
 import { authAPI } from '@/lib/api'
 
 export default function DashboardPage() {
   const { user, logout, hasPermission, hasRole, refreshUser } = useAuth()
   const router = useRouter()
-  const { toast } = useToast()
+  const { showSnackbar } = useSnackbar()
   const [updatingProvider, setUpdatingProvider] = useState(false)
   const [updatingExplainability, setUpdatingExplainability] = useState(false)
 
@@ -22,49 +45,49 @@ export default function DashboardPage() {
     {
       title: 'Chat',
       description: 'Interact with AI using RAG and multi-agent system',
-      icon: MessageSquare,
+      icon: MessageSquareIcon,
       href: '/dashboard/chat',
       permission: 'chat:use',
-      gradient: 'from-blue-500 to-cyan-500',
+      color: 'primary.main',
     },
     {
       title: 'Documents',
       description: 'Upload and manage knowledge base documents',
-      icon: FileText,
+      icon: FileTextIcon,
       href: '/dashboard/documents',
       permission: 'documents:read',
-      gradient: 'from-green-500 to-emerald-500',
+      color: 'success.main',
     },
     {
       title: 'OCR',
       description: 'Extract text from images and PDFs using AI vision',
-      icon: Brain,
+      icon: BrainIcon,
       href: '/dashboard/ocr',
       permission: 'documents:create',
-      gradient: 'from-indigo-500 to-purple-500',
+      color: 'secondary.main',
     },
     {
       title: 'Explainability',
       description: 'View AI reasoning and confidence scores',
-      icon: BarChart3,
+      icon: BarChart3Icon,
       href: '/dashboard/explainability',
       permission: 'explain:view',
-      gradient: 'from-purple-500 to-pink-500',
+      color: 'info.main',
     },
     {
       title: 'Utilities',
       description: 'Tables, forms, charts and other UI components',
-      icon: Code,
+      icon: CodeIcon,
       href: '/dashboard/utilities',
-      gradient: 'from-orange-500 to-red-500',
+      color: 'warning.main',
     },
     {
       title: 'Admin',
       description: 'Manage users, roles, and system settings',
-      icon: Users,
+      icon: UsersIcon,
       href: '/dashboard/admin',
       role: 'admin',
-      gradient: 'from-red-500 to-orange-500',
+      color: 'error.main',
     },
   ]
 
@@ -79,16 +102,9 @@ export default function DashboardPage() {
     try {
       await authAPI.updateProfile({ preferred_llm: value })
       await refreshUser()
-      toast({
-        title: 'Provider Updated',
-        description: `LLM provider changed to ${value}`,
-      })
+      showSnackbar(`LLM provider changed to ${value}`, 'success')
     } catch (error: any) {
-      toast({
-        title: 'Update Failed',
-        description: error.response?.data?.detail || 'Failed to update provider',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to update provider', 'error')
     } finally {
       setUpdatingProvider(false)
     }
@@ -99,135 +115,171 @@ export default function DashboardPage() {
     try {
       await authAPI.updateProfile({ explainability_level: value })
       await refreshUser()
-      toast({
-        title: 'Explainability Updated',
-        description: `Detail level changed to ${value}`,
-      })
+      showSnackbar(`Detail level changed to ${value}`, 'success')
     } catch (error: any) {
-      toast({
-        title: 'Update Failed',
-        description: error.response?.data?.detail || 'Failed to update explainability level',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to update explainability level', 'error')
     } finally {
       setUpdatingExplainability(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <div className="bg-white dark:bg-gray-950 border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-primary">RAG & Multi-Agent System</h1>
-            <p className="text-sm text-muted-foreground">Advanced AI with Explainability</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="font-medium">{user?.full_name || user?.username}</p>
-              <p className="text-sm text-muted-foreground capitalize">{user?.roles.join(', ')}</p>
-            </div>
+      <AppBar position="static" color="default" elevation={1}>
+        <Toolbar>
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+              RAG & Multi-Agent System
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Advanced AI with Explainability
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                {user?.full_name || user?.username}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                {user?.roles.join(', ')}
+              </Typography>
+            </Box>
             <ThemeToggle />
-            <Button variant="outline" size="sm" onClick={logout}>
-              <LogOut className="h-4 w-4 mr-2" />
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<LogOutIcon />}
+              onClick={logout}
+            >
               Logout
             </Button>
-          </div>
-        </div>
-      </div>
+          </Stack>
+        </Toolbar>
+      </AppBar>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">Welcome back!</h2>
-          <p className="text-muted-foreground">
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box sx={{ mb: 6 }}>
+          <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
+            Welcome back!
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
             Choose a feature to get started with AI-powered capabilities
-          </p>
-        </div>
+          </Typography>
+        </Box>
 
         {/* Feature Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Grid container spacing={3}>
           {accessibleFeatures.map((feature) => {
             const Icon = feature.icon
             return (
-              <Card
-                key={feature.href}
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => router.push(feature.href)}
-              >
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Icon className="h-6 w-6 text-primary" />
-                    </div>
-                    <CardTitle>{feature.title}</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription>{feature.description}</CardDescription>
-                </CardContent>
-              </Card>
+              <Grid item xs={12} md={6} lg={4} key={feature.href}>
+                <Card
+                  sx={{
+                    height: '100%',
+                    cursor: 'pointer',
+                    transition: 'box-shadow 0.3s',
+                    '&:hover': {
+                      boxShadow: 6
+                    }
+                  }}
+                  onClick={() => router.push(feature.href)}
+                >
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          p: 1.5,
+                          bgcolor: 'action.hover',
+                          borderRadius: 2
+                        }}
+                      >
+                        <Icon sx={{ fontSize: 28, color: feature.color }} />
+                      </Paper>
+                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                        {feature.title}
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary">
+                      {feature.description}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
             )
           })}
-        </div>
+        </Grid>
 
         {/* Info Cards */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">LLM Provider</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select
-                value={user?.preferred_llm}
-                onValueChange={handleUpdateProvider}
-                disabled={updatingProvider}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="custom">Custom API</SelectItem>
-                  <SelectItem value="ollama">Ollama</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground mt-2">Current selection</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Explainability Level</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select
-                value={user?.explainability_level}
-                onValueChange={handleUpdateExplainability}
-                disabled={updatingExplainability}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="basic">Basic</SelectItem>
-                  <SelectItem value="detailed">Detailed</SelectItem>
-                  <SelectItem value="debug">Debug</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground mt-2">Detail level</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Permissions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{user?.permissions.length}</p>
-              <p className="text-sm text-muted-foreground">Access rights</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
+        <Grid container spacing={3} sx={{ mt: 4 }}>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  LLM Provider
+                </Typography>
+                <FormControl fullWidth disabled={updatingProvider}>
+                  <InputLabel>Provider</InputLabel>
+                  <Select
+                    value={user?.preferred_llm || 'custom'}
+                    onChange={(e) => handleUpdateProvider(e.target.value)}
+                    label="Provider"
+                  >
+                    <MenuItem value="custom">Custom API</MenuItem>
+                    <MenuItem value="ollama">Ollama</MenuItem>
+                  </Select>
+                </FormControl>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Current selection
+                </Typography>
+                {updatingProvider && <CircularProgress size={20} sx={{ mt: 1 }} />}
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Explainability Level
+                </Typography>
+                <FormControl fullWidth disabled={updatingExplainability}>
+                  <InputLabel>Level</InputLabel>
+                  <Select
+                    value={user?.explainability_level || 'basic'}
+                    onChange={(e) => handleUpdateExplainability(e.target.value)}
+                    label="Level"
+                  >
+                    <MenuItem value="basic">Basic</MenuItem>
+                    <MenuItem value="detailed">Detailed</MenuItem>
+                    <MenuItem value="debug">Debug</MenuItem>
+                  </Select>
+                </FormControl>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Detail level
+                </Typography>
+                {updatingExplainability && <CircularProgress size={20} sx={{ mt: 1 }} />}
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Permissions
+                </Typography>
+                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
+                  {user?.permissions.length}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Access rights
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Container>
+    </Box>
   )
 }

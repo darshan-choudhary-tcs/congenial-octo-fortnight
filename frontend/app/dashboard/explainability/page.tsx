@@ -2,19 +2,46 @@
 
 import { useState, useEffect } from 'react'
 import { explainabilityAPI, chatAPI } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { useToast } from '@/components/ui/use-toast'
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Brain, TrendingUp, Loader2, FileText, CheckCircle, AlertCircle, Home, Eye } from 'lucide-react'
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Container,
+  Chip,
+  Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Tabs,
+  Tab,
+  Paper,
+  List,
+  ListItem,
+  ListItemText,
+  CircularProgress,
+  IconButton,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  LinearProgress,
+} from '@mui/material'
+import {
+  Psychology as BrainIcon,
+  TrendingUp as TrendingUpIcon,
+  Description as FileTextIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as AlertCircleIcon,
+  Home as HomeIcon,
+  Visibility as EyeIcon,
+  ExpandMore as ExpandMoreIcon,
+} from '@mui/icons-material'
 import { formatDate, getConfidenceColor, getConfidenceLabel } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { useSnackbar } from '@/components/SnackbarProvider'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface ExplanationData {
   message_id: string
@@ -40,7 +67,7 @@ interface AgentLog {
 }
 
 export default function ExplainabilityPage() {
-  const { toast } = useToast()
+  const { showSnackbar } = useSnackbar()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [conversations, setConversations] = useState<any[]>([])
@@ -48,6 +75,7 @@ export default function ExplainabilityPage() {
   const [explanations, setExplanations] = useState<ExplanationData[]>([])
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([])
   const [selectedExplanation, setSelectedExplanation] = useState<ExplanationData | null>(null)
+  const [activeTab, setActiveTab] = useState(0)
 
   useEffect(() => {
     loadConversations()
@@ -81,11 +109,7 @@ export default function ExplainabilityPage() {
         setSelectedExplanation(response.data[0])
       }
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load explanations',
-        variant: 'destructive',
-      })
+      showSnackbar('Failed to load explanations', 'error')
     } finally {
       setLoading(false)
     }
@@ -126,52 +150,67 @@ export default function ExplainabilityPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <div className="bg-white dark:bg-gray-950 border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
-              <Home className="h-4 w-4 mr-2" />
-              Dashboard
-            </Button>
-            <div className="flex items-center gap-2">
-              <Eye className="h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-bold">Explainability Dashboard</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <Label>Conversation:</Label>
-            <Select value={selectedConversation} onValueChange={setSelectedConversation}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Select conversation" />
-              </SelectTrigger>
-              <SelectContent>
-                {conversations.map((conv) => (
-                  <SelectItem key={conv.id} value={conv.id}>
-                    {conv.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
+      <Paper elevation={0} sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Container maxWidth="xl">
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<HomeIcon />}
+                onClick={() => router.push('/dashboard')}
+              >
+                Dashboard
+              </Button>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <EyeIcon color="primary" sx={{ fontSize: 32 }} />
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  Explainability Dashboard
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <ThemeToggle />
+              <FormControl sx={{ minWidth: 250 }} size="small">
+                <InputLabel>Conversation</InputLabel>
+                <Select
+                  value={selectedConversation}
+                  label="Conversation"
+                  onChange={(e) => setSelectedConversation(e.target.value)}
+                >
+                  {conversations.map((conv) => (
+                    <MenuItem key={conv.id} value={conv.id}>
+                      {conv.title}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          </Box>
+        </Container>
+      </Paper>
 
-      <div className="container mx-auto px-4 py-8">
+      <Container maxWidth="xl">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 4 }}>
           <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Queries</CardDescription>
-              <CardTitle className="text-3xl">{explanations.length}</CardTitle>
-            </CardHeader>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <Typography variant="caption" color="text.secondary">
+                Total Queries
+              </Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                {explanations.length}
+              </Typography>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Avg Confidence</CardDescription>
-              <CardTitle className="text-3xl text-green-600">
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <Typography variant="caption" color="text.secondary">
+                Avg Confidence
+              </Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
                 {explanations.length > 0
                   ? (
                       (explanations.reduce((sum, e) => sum + e.confidence_score, 0) /
@@ -179,382 +218,458 @@ export default function ExplainabilityPage() {
                       100
                     ).toFixed(1) + '%'
                   : 'N/A'}
-              </CardTitle>
-            </CardHeader>
+              </Typography>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Agent Executions</CardDescription>
-              <CardTitle className="text-3xl">{agentLogs.length}</CardTitle>
-            </CardHeader>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <Typography variant="caption" color="text.secondary">
+                Agent Executions
+              </Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                {agentLogs.length}
+              </Typography>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Success Rate</CardDescription>
-              <CardTitle className="text-3xl text-blue-600">
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <Typography variant="caption" color="text.secondary">
+                Success Rate
+              </Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
                 {agentLogs.length > 0
                   ? (
                       (agentLogs.filter((l) => l.status === 'success').length / agentLogs.length) *
                       100
                     ).toFixed(1) + '%'
                   : 'N/A'}
-              </CardTitle>
-            </CardHeader>
+              </Typography>
+            </CardContent>
           </Card>
-        </div>
+        </Box>
 
-        <Tabs defaultValue="insights" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="insights">AI Insights</TabsTrigger>
-            <TabsTrigger value="confidence">Confidence Analysis</TabsTrigger>
-            <TabsTrigger value="agents">Agent Performance</TabsTrigger>
-            <TabsTrigger value="reasoning">Reasoning Chains</TabsTrigger>
-          </TabsList>
+        <Paper sx={{ mb: 3 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, newValue) => setActiveTab(newValue)}
+            variant="fullWidth"
+            sx={{ borderBottom: 1, borderColor: 'divider' }}
+          >
+            <Tab label="AI Insights" />
+            <Tab label="Confidence Analysis" />
+            <Tab label="Agent Performance" />
+            <Tab label="Reasoning Chains" />
+          </Tabs>
+        </Paper>
 
-          {/* AI Insights Tab */}
-          <TabsContent value="insights">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Query List */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Query History</CardTitle>
-                  <CardDescription>Click to view detailed explanation</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : explanations.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <p>No explanations available</p>
-                      <p className="text-sm mt-2">Start chatting to generate insights</p>
-                    </div>
-                  ) : (
-                    <ScrollArea className="h-[500px]">
-                      <div className="space-y-2">
-                        {explanations.map((exp) => (
-                          <div
-                            key={exp.message_id}
-                            className={`p-3 rounded-lg cursor-pointer transition-colors border ${
-                              selectedExplanation?.message_id === exp.message_id
-                                ? 'bg-primary/10 border-primary'
-                                : 'hover:bg-muted'
-                            }`}
-                            onClick={() => setSelectedExplanation(exp)}
-                          >
-                            <div className="flex items-center justify-between mb-1">
-                              <Badge className={getConfidenceColor(exp.confidence_score)}>
-                                {getConfidenceLabel(exp.confidence_score)}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {formatDate(exp.created_at)}
-                              </span>
-                            </div>
-                            <p className="text-sm font-medium truncate">{exp.query}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {exp.sources.length} sources • {exp.reasoning_chain.length} reasoning steps
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Selected Explanation Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Detailed Explanation</CardTitle>
-                  <CardDescription>
-                    Understanding how the AI arrived at this answer
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {selectedExplanation ? (
-                    <ScrollArea className="h-[500px]">
-                      <div className="space-y-6">
-                        {/* Query */}
-                        <div>
-                          <h4 className="font-semibold mb-2 flex items-center gap-2">
-                            <Brain className="h-4 w-4" />
-                            Query
-                          </h4>
-                          <p className="text-sm bg-muted p-3 rounded">{selectedExplanation.query}</p>
-                        </div>
-
-                        {/* Confidence Score */}
-                        <div>
-                          <h4 className="font-semibold mb-2 flex items-center gap-2">
-                            <TrendingUp className="h-4 w-4" />
-                            Confidence Score
-                          </h4>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className={`h-full ${getConfidenceColor(selectedExplanation.confidence_score)}`}
-                                style={{
-                                  width: `${selectedExplanation.confidence_score * 100}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="text-sm font-semibold">
-                              {(selectedExplanation.confidence_score * 100).toFixed(1)}%
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Sources */}
-                        <div>
-                          <h4 className="font-semibold mb-2 flex items-center gap-2">
-                            <FileText className="h-4 w-4" />
-                            Sources ({selectedExplanation.sources.length})
-                          </h4>
-                          <div className="space-y-2">
-                            {selectedExplanation.sources.map((source, idx) => (
-                              <div key={idx} className="text-xs p-2 bg-muted rounded border">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="font-semibold">Source {source.source_number}</span>
-                                  <Badge variant="secondary">
-                                    {(source.similarity * 100).toFixed(1)}%
-                                  </Badge>
-                                </div>
-                                <p className="text-muted-foreground">{source.content}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Grounding Evidence */}
-                        {selectedExplanation.grounding_evidence.length > 0 && (
-                          <div>
-                            <h4 className="font-semibold mb-2 flex items-center gap-2">
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                              Grounding Evidence
-                            </h4>
-                            <div className="space-y-2">
-                              {selectedExplanation.grounding_evidence.map((evidence: any, idx) => (
-                                <div key={idx} className="text-xs p-2 bg-green-50 rounded border border-green-200">
-                                  <p className="font-semibold mb-1">{evidence.statement}</p>
-                                  <p className="text-muted-foreground">
-                                    Verified: {evidence.is_grounded ? 'Yes' : 'No'} (
-                                    {(evidence.confidence * 100).toFixed(1)}%)
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-[500px] text-center">
-                      <Brain className="h-12 w-12 text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">Select a query to view details</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Confidence Analysis Tab */}
-          <TabsContent value="confidence">
+        {/* AI Insights Tab */}
+        {activeTab === 0 && (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3 }}>
+            {/* Query List */}
             <Card>
-              <CardHeader>
-                <CardTitle>Confidence Score Trend</CardTitle>
-                <CardDescription>
-                  Track confidence levels across queries to identify patterns
-                </CardDescription>
-              </CardHeader>
               <CardContent>
-                {confidenceData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={400}>
-                    <LineChart data={confidenceData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis domain={[0, 100]} />
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            return (
-                              <div className="bg-white p-3 border rounded shadow-lg">
-                                <p className="text-sm font-semibold">{payload[0].payload.query}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  Confidence: {payload[0].value}%
-                                </p>
-                              </div>
-                            )
-                          }
-                          return null
-                        }}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="confidence"
-                        stroke="#10b981"
-                        strokeWidth={2}
-                        name="Confidence %"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                <Typography variant="h6" sx={{ mb: 1 }}>
+                  Query History
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Click to view detailed explanation
+                </Typography>
+                {loading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : explanations.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography color="text.secondary">No explanations available</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Start chatting to generate insights
+                    </Typography>
+                  </Box>
                 ) : (
-                  <div className="flex items-center justify-center h-[400px] text-muted-foreground">
-                    No data available
-                  </div>
+                  <Box sx={{ maxHeight: 500, overflow: 'auto' }}>
+                    <List>
+                      {explanations.map((exp) => (
+                        <ListItem
+                          key={exp.message_id}
+                          onClick={() => setSelectedExplanation(exp)}
+                          sx={{
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                            mb: 1,
+                            border: 1,
+                            borderColor: selectedExplanation?.message_id === exp.message_id ? 'primary.main' : 'divider',
+                            bgcolor: selectedExplanation?.message_id === exp.message_id ? 'action.selected' : 'transparent',
+                            '&:hover': { bgcolor: 'action.hover' },
+                          }}
+                        >
+                          <ListItemText
+                            primary={
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                <Chip
+                                  label={getConfidenceLabel(exp.confidence_score)}
+                                  size="small"
+                                  color={exp.confidence_score >= 0.8 ? 'success' : exp.confidence_score >= 0.6 ? 'warning' : 'error'}
+                                />
+                                <Typography variant="caption" color="text.secondary">
+                                  {formatDate(exp.created_at)}
+                                </Typography>
+                              </Box>
+                            }
+                            secondary={
+                              <>
+                                <Typography variant="body2" sx={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {exp.query}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {exp.sources.length} sources • {exp.reasoning_chain.length} reasoning steps
+                                </Typography>
+                              </>
+                            }
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Box>
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Agent Performance Tab */}
-          <TabsContent value="agents">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Agent Execution Stats</CardTitle>
-                  <CardDescription>Performance metrics for each agent</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {agentPerformanceData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={agentPerformanceData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="success" fill="#10b981" name="Success" />
-                        <Bar dataKey="failed" fill="#ef4444" name="Failed" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                      No agent data available
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Agent Logs</CardTitle>
-                  <CardDescription>Latest agent execution history</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ScrollArea className="h-[300px]">
-                    <div className="space-y-2">
-                      {agentLogs.slice(0, 20).map((log) => (
-                        <div key={log.id} className="p-3 border rounded-lg">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-semibold text-sm">{log.agent_name}</span>
-                            <Badge
-                              variant={log.status === 'success' ? 'default' : 'destructive'}
-                            >
-                              {log.status}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground mb-1">{log.action}</p>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{log.execution_time.toFixed(2)}s</span>
-                            <span>{formatDate(log.created_at)}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Reasoning Chains Tab */}
-          <TabsContent value="reasoning">
+            {/* Selected Explanation Details */}
             <Card>
-              <CardHeader>
-                <CardTitle>Reasoning Chain Visualization</CardTitle>
-                <CardDescription>
-                  Step-by-step breakdown of AI decision-making process
-                </CardDescription>
-              </CardHeader>
               <CardContent>
+                <Typography variant="h6" sx={{ mb: 1 }}>
+                  Detailed Explanation
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Understanding how the AI arrived at this answer
+                </Typography>
                 {selectedExplanation ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Label>Query:</Label>
+                  <Box sx={{ maxHeight: 500, overflow: 'auto' }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {/* Query */}
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, fontWeight: 600 }}>
+                          <BrainIcon fontSize="small" />
+                          Query
+                        </Typography>
+                        <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'action.hover' }}>
+                          <Typography variant="body2">{selectedExplanation.query}</Typography>
+                        </Paper>
+                      </Box>
+
+                      {/* Confidence Score */}
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, fontWeight: 600 }}>
+                          <TrendingUpIcon fontSize="small" />
+                          Confidence Score
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box sx={{ flex: 1, position: 'relative', height: 8, bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden' }}>
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                left: 0,
+                                top: 0,
+                                bottom: 0,
+                                width: `${selectedExplanation.confidence_score * 100}%`,
+                                bgcolor: selectedExplanation.confidence_score >= 0.8 ? 'success.main' : selectedExplanation.confidence_score >= 0.6 ? 'warning.main' : 'error.main',
+                              }}
+                            />
+                          </Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 45 }}>
+                            {(selectedExplanation.confidence_score * 100).toFixed(1)}%
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      {/* Sources */}
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, fontWeight: 600 }}>
+                          <FileTextIcon fontSize="small" />
+                          Sources ({selectedExplanation.sources.length})
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          {selectedExplanation.sources.map((source, idx) => (
+                            <Paper key={idx} variant="outlined" sx={{ p: 1.5 }}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                  Source {source.source_number}
+                                </Typography>
+                                <Chip label={`${(source.similarity * 100).toFixed(1)}%`} size="small" />
+                              </Box>
+                              <Typography variant="caption" color="text.secondary">
+                                {source.content}
+                              </Typography>
+                            </Paper>
+                          ))}
+                        </Box>
+                      </Box>
+
+                      {/* Grounding Evidence */}
+                      {selectedExplanation.grounding_evidence.length > 0 && (
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, fontWeight: 600 }}>
+                            <CheckCircleIcon fontSize="small" color="success" />
+                            Grounding Evidence
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            {selectedExplanation.grounding_evidence.map((evidence: any, idx) => (
+                              <Paper key={idx} variant="outlined" sx={{ p: 1.5, bgcolor: 'success.50', borderColor: 'success.light' }}>
+                                <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                                  {evidence.statement}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Verified: {evidence.is_grounded ? 'Yes' : 'No'} (
+                                  {(evidence.confidence * 100).toFixed(1)}%)
+                                </Typography>
+                              </Paper>
+                            ))}
+                          </Box>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 500, textAlign: 'center' }}>
+                    <BrainIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                    <Typography color="text.secondary">Select a query to view details</Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {/* Confidence Analysis Tab */}
+        {activeTab === 1 && (
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 1 }}>
+                Confidence Score Trend
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Track confidence levels across queries to identify patterns
+              </Typography>
+              {confidenceData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart data={confidenceData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <Paper sx={{ p: 1.5, boxShadow: 3 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {payload[0].payload.query}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Confidence: {payload[0].value}%
+                              </Typography>
+                            </Paper>
+                          )
+                        }
+                        return null
+                      }}
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="confidence"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      name="Confidence %"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
+                  <Typography color="text.secondary">No data available</Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Agent Performance Tab */}
+        {activeTab === 2 && (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 1 }}>
+                  Agent Execution Stats
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                  Performance metrics for each agent
+                </Typography>
+                {agentPerformanceData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={agentPerformanceData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="success" fill="#10b981" name="Success" />
+                      <Bar dataKey="failed" fill="#ef4444" name="Failed" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
+                    <Typography color="text.secondary">No agent data available</Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 1 }}>
+                  Recent Agent Logs
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Latest agent execution history
+                </Typography>
+                <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                  <List>
+                    {agentLogs.slice(0, 20).map((log) => (
+                      <ListItem key={log.id} sx={{ p: 1.5, mb: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {log.agent_name}
+                              </Typography>
+                              <Chip
+                                label={log.status}
+                                size="small"
+                                color={log.status === 'success' ? 'success' : 'error'}
+                              />
+                            </Box>
+                          }
+                          secondary={
+                            <>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                                {log.action}
+                              </Typography>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="caption" color="text.secondary">
+                                  {log.execution_time.toFixed(2)}s
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {formatDate(log.created_at)}
+                                </Typography>
+                              </Box>
+                            </>
+                          }
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {/* Reasoning Chains Tab */}
+        {activeTab === 3 && (
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 1 }}>
+                Reasoning Chain Visualization
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Step-by-step breakdown of AI decision-making process
+              </Typography>
+              {selectedExplanation ? (
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                    <Typography variant="body2" sx={{ minWidth: 60 }}>Query:</Typography>
+                    <FormControl fullWidth size="small">
                       <Select
                         value={selectedExplanation.message_id}
-                        onValueChange={(id) => {
-                          const exp = explanations.find((e) => e.message_id === id)
+                        onChange={(e) => {
+                          const exp = explanations.find((exp) => exp.message_id === e.target.value)
                           if (exp) setSelectedExplanation(exp)
                         }}
                       >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {explanations.map((exp) => (
-                            <SelectItem key={exp.message_id} value={exp.message_id}>
-                              {exp.query}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
+                        {explanations.map((exp) => (
+                          <MenuItem key={exp.message_id} value={exp.message_id}>
+                            {exp.query}
+                          </MenuItem>
+                        ))}
                       </Select>
-                    </div>
+                    </FormControl>
+                  </Box>
 
-                    <div className="relative">
-                      {selectedExplanation.reasoning_chain.map((step, idx) => (
-                        <div key={idx} className="flex gap-4 mb-6">
-                          <div className="flex flex-col items-center">
-                            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
-                              {idx + 1}
-                            </div>
-                            {idx < selectedExplanation.reasoning_chain.length - 1 && (
-                              <div className="w-0.5 h-full bg-primary/30 my-2" />
-                            )}
-                          </div>
-                          <div className="flex-1 pb-4">
-                            <div className="bg-muted p-4 rounded-lg">
-                              <p className="text-sm">{step}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  <Box sx={{ position: 'relative' }}>
+                    {selectedExplanation.reasoning_chain.map((step, idx) => (
+                      <Box key={idx} sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <Box
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: '50%',
+                              bgcolor: 'primary.main',
+                              color: 'primary.contrastText',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {idx + 1}
+                          </Box>
+                          {idx < selectedExplanation.reasoning_chain.length - 1 && (
+                            <Box sx={{ width: 2, flex: 1, bgcolor: 'primary.light', my: 1, minHeight: 20 }} />
+                          )}
+                        </Box>
+                        <Box sx={{ flex: 1, pb: 2 }}>
+                          <Paper variant="outlined" sx={{ p: 2, bgcolor: 'action.hover' }}>
+                            <Typography variant="body2">{step}</Typography>
+                          </Paper>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
 
-                    {selectedExplanation.agent_decisions.length > 0 && (
-                      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <h4 className="font-semibold mb-3 flex items-center gap-2">
-                          <Brain className="h-4 w-4 text-blue-600" />
-                          Agent Decisions
-                        </h4>
-                        <div className="space-y-2">
-                          {selectedExplanation.agent_decisions.map((decision: any, idx) => (
-                            <div key={idx} className="text-sm bg-white p-3 rounded border">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="font-semibold">{decision.agent}</span>
-                                <Badge variant="secondary">{decision.decision}</Badge>
-                              </div>
-                              <p className="text-muted-foreground">{decision.reasoning}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Brain className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Select a query from Insights tab</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+                  {selectedExplanation.agent_decisions.length > 0 && (
+                    <Paper sx={{ mt: 3, p: 2, bgcolor: 'info.50', border: 1, borderColor: 'info.light' }}>
+                      <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, fontWeight: 600 }}>
+                        <BrainIcon fontSize="small" color="info" />
+                        Agent Decisions
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {selectedExplanation.agent_decisions.map((decision: any, idx) => (
+                          <Paper key={idx} variant="outlined" sx={{ p: 1.5, bgcolor: 'background.paper' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {decision.agent}
+                              </Typography>
+                              <Chip label={decision.decision} size="small" />
+                            </Box>
+                            <Typography variant="body2" color="text.secondary">
+                              {decision.reasoning}
+                            </Typography>
+                          </Paper>
+                        ))}
+                      </Box>
+                    </Paper>
+                  )}
+                </Box>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 6, textAlign: 'center' }}>
+                  <BrainIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                  <Typography color="text.secondary">Select a query from Insights tab</Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </Container>
+    </Box>
   )
 }

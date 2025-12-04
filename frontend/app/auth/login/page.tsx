@@ -4,12 +4,22 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  TextField,
+  Card,
+  CardContent,
+  Alert,
+  AppBar,
+  Toolbar,
+  Stack,
+  Paper
+} from '@mui/material'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { Brain, ArrowRight } from 'lucide-react'
+import { Psychology as BrainIcon } from '@mui/icons-material'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -35,84 +45,140 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <Box sx={{ minHeight: '100vh' }}>
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 z-50">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push('/')}>
-            <Brain className="h-8 w-8 text-blue-600" />
-            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+      <AppBar
+        position="fixed"
+        sx={{
+          backgroundColor: 'background.paper',
+          backdropFilter: 'blur(10px)',
+          boxShadow: 1
+        }}
+      >
+        <Toolbar>
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, cursor: 'pointer' }}
+            onClick={() => router.push('/')}
+          >
+            <BrainIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}
+            >
               AI RAG Platform
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={2} alignItems="center">
             <ThemeToggle />
-            <Button variant="ghost" onClick={() => router.push('/auth/register')}>
+            <Button
+              variant="text"
+              onClick={() => router.push('/auth/register')}
+            >
               Register
             </Button>
-          </div>
-        </div>
-      </nav>
+          </Stack>
+        </Toolbar>
+      </AppBar>
 
       {/* Login Form */}
-      <div className="flex items-center justify-center min-h-screen p-4 pt-24">
-        <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Login</CardTitle>
-          <CardDescription>
-            Enter your credentials to access the RAG & Multi-Agent System
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
-                {error}
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-            <div className="text-sm text-muted-foreground">
-              <p className="font-semibold mb-1">Demo Accounts:</p>
-              <p>Admin: <code className="bg-muted px-1 rounded">admin / admin123</code></p>
-              <p>Analyst: <code className="bg-muted px-1 rounded">analyst1 / analyst123</code></p>
-              <p>Viewer: <code className="bg-muted px-1 rounded">viewer1 / viewer123</code></p>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Logging in...' : 'Login'}
-            </Button>
-            <div className="text-sm text-center text-muted-foreground">
-              Don't have an account?{' '}
-              <Link href="/auth/register" className="text-primary hover:underline">
-                Register
-              </Link>
-            </div>
-          </CardFooter>
-        </form>
-      </Card>
-      </div>
-    </div>
+      <Container maxWidth="sm">
+        <Box
+          sx={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            py: 12
+          }}
+        >
+          <Card sx={{ width: '100%' }}>
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                Login
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                Enter your credentials to access the RAG & Multi-Agent System
+              </Typography>
+
+              <Box component="form" onSubmit={handleSubmit}>
+                <Stack spacing={3}>
+                  {error && (
+                    <Alert severity="error">{error}</Alert>
+                  )}
+
+                  <TextField
+                    fullWidth
+                    label="Username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    disabled={loading}
+                    autoComplete="username"
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={loading}
+                    autoComplete="current-password"
+                  />
+
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 2, bgcolor: 'action.hover' }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                      Demo Accounts:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                      Admin: admin / admin123
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                      Analyst: analyst1 / analyst123
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                      Viewer: viewer1 / viewer123
+                    </Typography>
+                  </Paper>
+
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    fullWidth
+                    disabled={loading}
+                  >
+                    {loading ? 'Logging in...' : 'Login'}
+                  </Button>
+
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                    Don't have an account?{' '}
+                    <Link href="/auth/register" style={{ color: 'inherit', textDecoration: 'none' }}>
+                      <Typography
+                        component="span"
+                        color="primary"
+                        sx={{ fontWeight: 600, '&:hover': { textDecoration: 'underline' } }}
+                      >
+                        Register
+                      </Typography>
+                    </Link>
+                  </Typography>
+                </Stack>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      </Container>
+    </Box>
   )
 }

@@ -3,19 +3,54 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { adminAPI } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { useToast } from '@/components/ui/use-toast'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Shield, Activity, Loader2, UserPlus, Edit, Trash2, Home, Settings, TrendingUp, DollarSign, Zap } from 'lucide-react'
+import { useSnackbar } from '@/components/SnackbarProvider'
 import { formatDate } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import {
+  Box,
+  Container,
+  Paper,
+  Card,
+  CardContent,
+  Button,
+  IconButton,
+  TextField,
+  Typography,
+  Chip,
+  Divider,
+  Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Tabs,
+  Tab,
+  CircularProgress,
+} from '@mui/material'
+import {
+  People as UsersIcon,
+  Shield as ShieldIcon,
+  TrendingUp as ActivityIcon,
+  PersonAdd as UserPlusIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Home as HomeIcon,
+  Settings as SettingsIcon,
+  TrendingUp as TrendingUpIcon,
+  AttachMoney as DollarSignIcon,
+  FlashOn as ZapIcon,
+} from '@mui/icons-material'
 
 interface User {
   id: string
@@ -94,7 +129,7 @@ interface LLMConfig {
 
 export default function AdminPage() {
   const { user: currentUser } = useAuth()
-  const { toast } = useToast()
+  const { showSnackbar } = useSnackbar()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [users, setUsers] = useState<User[]>([])
@@ -103,6 +138,7 @@ export default function AdminPage() {
   const [llmConfig, setLLMConfig] = useState<LLMConfig | null>(null)
   const [showCreateUser, setShowCreateUser] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [activeTab, setActiveTab] = useState(0)
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -114,11 +150,7 @@ export default function AdminPage() {
   useEffect(() => {
     // Check admin permission
     if (currentUser && !currentUser.roles.includes('admin')) {
-      toast({
-        title: 'Access Denied',
-        description: 'You do not have permission to access this page',
-        variant: 'destructive',
-      })
+      showSnackbar('You do not have permission to access this page', 'error')
       router.push('/dashboard')
       return
     }
@@ -141,11 +173,7 @@ export default function AdminPage() {
       setStats(statsRes.data)
       setLLMConfig(configRes.data)
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to load admin data',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to load admin data', 'error')
     } finally {
       setLoading(false)
     }
@@ -154,19 +182,12 @@ export default function AdminPage() {
   const handleCreateUser = async () => {
     try {
       await adminAPI.createUser(formData)
-      toast({
-        title: 'Success',
-        description: 'User created successfully',
-      })
+      showSnackbar('User created successfully', 'success')
       setShowCreateUser(false)
       setFormData({ username: '', email: '', password: '', full_name: '', role: 'viewer' })
       await loadData()
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to create user',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to create user', 'error')
     }
   }
 
@@ -179,18 +200,11 @@ export default function AdminPage() {
         role: editingUser.role,
         is_active: editingUser.is_active,
       })
-      toast({
-        title: 'Success',
-        description: 'User updated successfully',
-      })
+      showSnackbar('User updated successfully', 'success')
       setEditingUser(null)
       await loadData()
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to update user',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to update user', 'error')
     }
   }
 
@@ -198,665 +212,816 @@ export default function AdminPage() {
     if (!confirm(`Are you sure you want to delete user "${username}"?`)) return
     try {
       await adminAPI.deleteUser(userId)
-      toast({
-        title: 'Success',
-        description: 'User deleted successfully',
-      })
+      showSnackbar('User deleted successfully', 'success')
       await loadData()
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to delete user',
-        variant: 'destructive',
-      })
+      showSnackbar(error.response?.data?.detail || 'Failed to delete user', 'error')
     }
   }
 
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadgeColor = (role: string): 'error' | 'primary' | 'default' => {
     switch (role) {
       case 'admin':
-        return 'bg-red-100 text-red-800 border-red-300'
+        return 'error'
       case 'analyst':
-        return 'bg-blue-100 text-blue-800 border-blue-300'
+        return 'primary'
       case 'viewer':
-        return 'bg-gray-100 text-gray-800 border-gray-300'
+        return 'default'
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-300'
+        return 'default'
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <CircularProgress size={48} />
+      </Box>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <div className="bg-white dark:bg-gray-950 border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
-              <Home className="h-4 w-4 mr-2" />
-              Dashboard
-            </Button>
-            <div className="flex items-center gap-2">
-              <Settings className="h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-bold">Admin Panel</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            <Badge variant="destructive" className="px-3 py-1">
-              <Shield className="h-3 w-3 mr-1" />
-              Administrator
-            </Badge>
-          </div>
-        </div>
-      </div>
+      <Paper sx={{ borderRadius: 0, borderBottom: 1, borderColor: 'divider' }} elevation={1}>
+        <Container maxWidth="xl">
+          <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button
+                variant="text"
+                startIcon={<HomeIcon />}
+                onClick={() => router.push('/dashboard')}
+              >
+                Dashboard
+              </Button>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <SettingsIcon color="primary" />
+                <Typography variant="h5" fontWeight="bold">
+                  Admin Panel
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <ThemeToggle />
+              <Chip
+                icon={<ShieldIcon />}
+                label="Administrator"
+                color="error"
+                size="small"
+              />
+            </Box>
+          </Box>
+        </Container>
+      </Paper>
 
-      <div className="container mx-auto px-4 py-8">
+      <Container maxWidth="xl" sx={{ py: 4 }}>
         {/* System Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Users</CardDescription>
-              <CardTitle className="text-3xl flex items-center gap-2">
-                <Users className="h-6 w-6 text-blue-600" />
-                {stats?.total_users || 0}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Active (24h)</CardDescription>
-              <CardTitle className="text-3xl flex items-center gap-2">
-                <Activity className="h-6 w-6 text-green-600" />
-                {stats?.active_users_24h || 0}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Conversations</CardDescription>
-              <CardTitle className="text-3xl">{stats?.total_conversations || 0}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Agent Executions</CardDescription>
-              <CardTitle className="text-3xl">{stats?.total_agent_executions || 0}</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2" gutterBottom>
+                  Total Users
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <UsersIcon sx={{ color: 'primary.main', fontSize: 32 }} />
+                  <Typography variant="h3" fontWeight="bold">
+                    {stats?.total_users || 0}
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2" gutterBottom>
+                  Active (24h)
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <ActivityIcon sx={{ color: 'success.main', fontSize: 32 }} />
+                  <Typography variant="h3" fontWeight="bold">
+                    {stats?.active_users_24h || 0}
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2" gutterBottom>
+                  Total Conversations
+                </Typography>
+                <Typography variant="h3" fontWeight="bold">
+                  {stats?.total_conversations || 0}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2" gutterBottom>
+                  Agent Executions
+                </Typography>
+                <Typography variant="h3" fontWeight="bold">
+                  {stats?.total_agent_executions || 0}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
 
         {/* Token Usage Stats */}
         {stats?.token_usage && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
-              <CardHeader className="pb-3">
-                <CardDescription>Total Tokens</CardDescription>
-                <CardTitle className="text-3xl flex items-center gap-2">
-                  <Zap className="h-6 w-6 text-purple-600" />
-                  {stats.token_usage.total_tokens.toLocaleString()}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
-              <CardHeader className="pb-3">
-                <CardDescription>Total Cost</CardDescription>
-                <CardTitle className="text-3xl flex items-center gap-2">
-                  <DollarSign className="h-6 w-6 text-green-600" />
-                  ${stats.token_usage.total_cost.toFixed(4)}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
-              <CardHeader className="pb-3">
-                <CardDescription>Last 30 Days</CardDescription>
-                <CardTitle className="text-3xl flex items-center gap-2">
-                  <TrendingUp className="h-6 w-6 text-blue-600" />
-                  {stats.token_usage.tokens_last_30_days.toLocaleString()}
-                </CardTitle>
-                <CardDescription className="text-xs mt-1">
-                  ${stats.token_usage.cost_last_30_days.toFixed(4)}
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900">
-              <CardHeader className="pb-3">
-                <CardDescription>Last 7 Days</CardDescription>
-                <CardTitle className="text-3xl flex items-center gap-2">
-                  <Activity className="h-6 w-6 text-orange-600" />
-                  {stats.token_usage.tokens_last_7_days.toLocaleString()}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-          </div>
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} md={3}>
+              <Card sx={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%)' }}>
+                <CardContent>
+                  <Typography color="text.secondary" variant="body2" gutterBottom>
+                    Total Tokens
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <ZapIcon sx={{ color: '#9333ea', fontSize: 32 }} />
+                    <Typography variant="h3" fontWeight="bold">
+                      {stats.token_usage.total_tokens.toLocaleString()}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Card sx={{ background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)' }}>
+                <CardContent>
+                  <Typography color="text.secondary" variant="body2" gutterBottom>
+                    Total Cost
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <DollarSignIcon sx={{ color: '#16a34a', fontSize: 32 }} />
+                    <Typography variant="h3" fontWeight="bold">
+                      ${stats.token_usage.total_cost.toFixed(4)}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Card sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)' }}>
+                <CardContent>
+                  <Typography color="text.secondary" variant="body2" gutterBottom>
+                    Last 30 Days
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <TrendingUpIcon sx={{ color: '#2563eb', fontSize: 32 }} />
+                    <Typography variant="h3" fontWeight="bold">
+                      {stats.token_usage.tokens_last_30_days.toLocaleString()}
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    ${stats.token_usage.cost_last_30_days.toFixed(4)}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Card sx={{ background: 'linear-gradient(135deg, #fed7aa 0%, #fdba74 100%)' }}>
+                <CardContent>
+                  <Typography color="text.secondary" variant="body2" gutterBottom>
+                    Last 7 Days
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <ActivityIcon sx={{ color: '#ea580c', fontSize: 32 }} />
+                    <Typography variant="h3" fontWeight="bold">
+                      {stats.token_usage.tokens_last_7_days.toLocaleString()}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
         )}
 
-        <Tabs defaultValue="users" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="users">User Management</TabsTrigger>
-            <TabsTrigger value="roles">Roles & Permissions</TabsTrigger>
-            <TabsTrigger value="stats">System Statistics</TabsTrigger>
-            <TabsTrigger value="llm-config">LLM Configuration</TabsTrigger>
-          </TabsList>
+        <Paper sx={{ mb: 4 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(e, newValue) => setActiveTab(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+          >
+            <Tab label="User Management" />
+            <Tab label="Roles & Permissions" />
+            <Tab label="System Statistics" />
+            <Tab label="LLM Configuration" />
+          </Tabs>
+        </Paper>
 
           {/* User Management Tab */}
-          <TabsContent value="users">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>User Management</CardTitle>
-                    <CardDescription>Manage user accounts and permissions</CardDescription>
-                  </div>
-                  <Button onClick={() => setShowCreateUser(!showCreateUser)}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Create User
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
+          {activeTab === 0 && (
+            <Paper>
+              <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
+                <Box>
+                  <Typography variant="h6" fontWeight="bold">User Management</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Manage user accounts and permissions
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  startIcon={<UserPlusIcon />}
+                  onClick={() => setShowCreateUser(!showCreateUser)}
+                >
+                  Create User
+                </Button>
+              </Box>
+              <Box sx={{ p: 3 }}>
                 {/* Create User Form */}
                 {showCreateUser && (
-                  <div className="mb-6 p-4 border rounded-lg bg-muted/50">
-                    <h3 className="font-semibold mb-4">Create New User</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="username">Username</Label>
-                        <Input
-                          id="username"
+                  <Paper sx={{ p: 3, mb: 3, bgcolor: 'action.hover' }}>
+                    <Typography variant="h6" fontWeight="bold" gutterBottom>
+                      Create New User
+                    </Typography>
+                    <Grid container spacing={2} sx={{ mb: 2 }}>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Username"
                           value={formData.username}
                           onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                           placeholder="johndoe"
                         />
-                      </div>
-                      <div>
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Email"
                           type="email"
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           placeholder="john@example.com"
                         />
-                      </div>
-                      <div>
-                        <Label htmlFor="password">Password</Label>
-                        <Input
-                          id="password"
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Password"
                           type="password"
                           value={formData.password}
                           onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                           placeholder="••••••••"
                         />
-                      </div>
-                      <div>
-                        <Label htmlFor="full_name">Full Name</Label>
-                        <Input
-                          id="full_name"
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Full Name"
                           value={formData.full_name}
                           onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                           placeholder="John Doe"
                         />
-                      </div>
-                      <div>
-                        <Label htmlFor="role">Role</Label>
-                        <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
-                          <SelectTrigger id="role">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth>
+                          <InputLabel>Role</InputLabel>
+                          <Select
+                            value={formData.role}
+                            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                            label="Role"
+                          >
                             {roles.map((role) => (
-                              <SelectItem key={role.id} value={role.name}>
+                              <MenuItem key={role.id} value={role.name}>
                                 {role.name}
-                              </SelectItem>
+                              </MenuItem>
                             ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 mt-4">
-                      <Button onClick={handleCreateUser}>Create User</Button>
-                      <Button variant="outline" onClick={() => setShowCreateUser(false)}>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                    </Grid>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button variant="contained" onClick={handleCreateUser}>
+                        Create User
+                      </Button>
+                      <Button variant="outlined" onClick={() => setShowCreateUser(false)}>
                         Cancel
                       </Button>
-                    </div>
-                  </div>
+                    </Box>
+                  </Paper>
                 )}
 
                 {/* User List */}
-                <ScrollArea className="h-[500px]">
-                  <div className="space-y-2">
-                    {users.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors bg-card"
-                      >
-                        {editingUser?.id === user.id ? (
-                          <div className="flex-1 grid grid-cols-4 gap-4 items-center">
-                            <Input
-                              value={editingUser.email}
-                              onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                <TableContainer sx={{ maxHeight: 600 }}>
+                  <Table stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Username</TableCell>
+                        <TableCell>Email</TableCell>
+                        <TableCell>Full Name</TableCell>
+                        <TableCell>Role</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Joined</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {users.map((user) => (
+                        <TableRow key={user.id} hover>
+                          <TableCell>
+                            <Typography fontWeight="bold">{user.username}</Typography>
+                          </TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.full_name}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={user.role}
+                              color={getRoleBadgeColor(user.role)}
+                              size="small"
                             />
-                            <Input
-                              value={editingUser.full_name}
-                              onChange={(e) => setEditingUser({ ...editingUser, full_name: e.target.value })}
-                            />
-                            <Select
-                              value={editingUser.role}
-                              onValueChange={(value) => setEditingUser({ ...editingUser, role: value })}
+                          </TableCell>
+                          <TableCell>
+                            {user.is_active ? (
+                              <Chip label="Active" color="success" size="small" />
+                            ) : (
+                              <Chip label="Inactive" color="error" size="small" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {formatDate(user.created_at)}
+                            </Typography>
+                            {user.last_login && (
+                              <Typography variant="caption" color="text.secondary">
+                                Last: {formatDate(user.last_login)}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell align="right">
+                            <IconButton
+                              size="small"
+                              onClick={() => router.push(`/dashboard/admin/users/${user.id}`)}
+                              color="primary"
                             >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {roles.map((role) => (
-                                  <SelectItem key={role.id} value={role.name}>
-                                    {role.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <div className="flex gap-2">
-                              <Button size="sm" onClick={handleUpdateUser}>
-                                Save
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => setEditingUser(null)}>
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold">{user.username}</h3>
-                                <Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge>
-                                {!user.is_active && <Badge variant="destructive">Inactive</Badge>}
-                              </div>
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                <span>{user.email}</span>
-                                <span>•</span>
-                                <span>{user.full_name}</span>
-                                <span>•</span>
-                                <span>Joined {formatDate(user.created_at)}</span>
-                                {user.last_login && (
-                                  <>
-                                    <span>•</span>
-                                    <span>Last login {formatDate(user.last_login)}</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => router.push(`/dashboard/admin/users/${user.id}`)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteUser(user.id, user.username)}
-                                disabled={user.username === currentUser?.username}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteUser(user.id, user.username)}
+                              disabled={user.username === currentUser?.username}
+                              color="error"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            </Paper>
+          )}
 
           {/* Roles & Permissions Tab */}
-          <TabsContent value="roles">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {activeTab === 1 && (
+            <Grid container spacing={3}>
               {roles.map((role) => (
-                <Card key={role.id}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Shield className="h-5 w-5" />
-                      {role.name}
-                    </CardTitle>
-                    <CardDescription>{role.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <p className="text-sm font-semibold mb-2">Permissions:</p>
-                      <div className="space-y-1">
+                <Grid item xs={12} md={4} key={role.id}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <ShieldIcon />
+                        <Typography variant="h6" fontWeight="bold">
+                          {role.name}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        {role.description}
+                      </Typography>
+                      <Divider sx={{ my: 2 }} />
+                      <Typography variant="body2" fontWeight="bold" gutterBottom>
+                        Permissions:
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
                         {role.permissions.map((permission) => (
-                          <div key={permission} className="flex items-center gap-2 text-sm">
-                            <div className="w-2 h-2 rounded-full bg-green-600" />
-                            <span>{permission}</span>
-                          </div>
+                          <Chip
+                            key={permission}
+                            label={permission}
+                            size="small"
+                            color="success"
+                            variant="outlined"
+                          />
                         ))}
-                      </div>
-                      <div className="mt-4 pt-4 border-t">
-                        <p className="text-sm text-muted-foreground">
-                          {users.filter((u) => u.role === role.name).length} users with this role
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      </Box>
+                      <Divider sx={{ my: 2 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        {users.filter((u) => u.role === role.name).length} users with this role
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
               ))}
-            </div>
-          </TabsContent>
+            </Grid>
+          )}
 
           {/* System Statistics Tab */}
-          <TabsContent value="stats">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>System Overview</CardTitle>
-                  <CardDescription>Key metrics and statistics</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center pb-3 border-b">
-                      <span className="text-sm font-medium">Total Users</span>
-                      <span className="text-2xl font-bold">{stats?.total_users || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-3 border-b">
-                      <span className="text-sm font-medium">Total Documents</span>
-                      <span className="text-2xl font-bold">{stats?.total_documents || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-3 border-b">
-                      <span className="text-sm font-medium">Total Conversations</span>
-                      <span className="text-2xl font-bold">{stats?.total_conversations || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-3 border-b">
-                      <span className="text-sm font-medium">Total Messages</span>
-                      <span className="text-2xl font-bold">{stats?.total_messages || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Agent Executions</span>
-                      <span className="text-2xl font-bold">{stats?.total_agent_executions || 0}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          {activeTab === 2 && (
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" gutterBottom>
+                      System Overview
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Key metrics and statistics
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" fontWeight="medium">Total Users</Typography>
+                        <Typography variant="h5" fontWeight="bold">{stats?.total_users || 0}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" fontWeight="medium">Total Documents</Typography>
+                        <Typography variant="h5" fontWeight="bold">{stats?.total_documents || 0}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" fontWeight="medium">Total Conversations</Typography>
+                        <Typography variant="h5" fontWeight="bold">{stats?.total_conversations || 0}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" fontWeight="medium">Total Messages</Typography>
+                        <Typography variant="h5" fontWeight="bold">{stats?.total_messages || 0}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" fontWeight="medium">Agent Executions</Typography>
+                        <Typography variant="h5" fontWeight="bold">{stats?.total_agent_executions || 0}</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Token Usage</CardTitle>
-                  <CardDescription>LLM token consumption and costs</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {stats?.token_usage ? (
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center pb-3 border-b">
-                        <span className="text-sm font-medium">Total Tokens</span>
-                        <span className="text-2xl font-bold">{stats.token_usage.total_tokens.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-3 border-b">
-                        <span className="text-sm font-medium">Total Cost</span>
-                        <span className="text-2xl font-bold text-green-600">${stats.token_usage.total_cost.toFixed(4)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-3 border-b">
-                        <span className="text-sm font-medium">Last 30 Days</span>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold">{stats.token_usage.tokens_last_30_days.toLocaleString()}</div>
-                          <div className="text-xs text-muted-foreground">${stats.token_usage.cost_last_30_days.toFixed(4)}</div>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center pb-3 border-b">
-                        <span className="text-sm font-medium">Last 7 Days</span>
-                        <span className="text-2xl font-bold">{stats.token_usage.tokens_last_7_days.toLocaleString()}</span>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium mb-2">Provider Breakdown</div>
-                        {Object.entries(stats.token_usage.provider_breakdown).map(([provider, data]) => (
-                          <div key={provider} className="flex justify-between items-center py-2">
-                            <span className="text-sm capitalize">{provider}</span>
-                            <div className="text-right">
-                              <div className="text-sm font-bold">{data.tokens.toLocaleString()}</div>
-                              <div className="text-xs text-muted-foreground">{data.requests} requests</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <p>No token usage data available</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" gutterBottom>
+                      Token Usage
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      LLM token consumption and costs
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    {stats?.token_usage ? (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" fontWeight="medium">Total Tokens</Typography>
+                          <Typography variant="h5" fontWeight="bold">{stats.token_usage.total_tokens.toLocaleString()}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" fontWeight="medium">Total Cost</Typography>
+                          <Typography variant="h5" fontWeight="bold" color="success.main">
+                            ${stats.token_usage.total_cost.toFixed(4)}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" fontWeight="medium">Last 30 Days</Typography>
+                          <Box sx={{ textAlign: 'right' }}>
+                            <Typography variant="h5" fontWeight="bold">
+                              {stats.token_usage.tokens_last_30_days.toLocaleString()}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              ${stats.token_usage.cost_last_30_days.toFixed(4)}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" fontWeight="medium">Last 7 Days</Typography>
+                          <Typography variant="h5" fontWeight="bold">
+                            {stats.token_usage.tokens_last_7_days.toLocaleString()}
+                          </Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium" sx={{ mb: 1 }}>
+                            Provider Breakdown
+                          </Typography>
+                          {Object.entries(stats.token_usage.provider_breakdown).map(([provider, data]) => (
+                            <Box key={provider} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1 }}>
+                              <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+                                {provider}
+                              </Typography>
+                              <Box sx={{ textAlign: 'right' }}>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {data.tokens.toLocaleString()}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {data.requests} requests
+                                </Typography>
+                              </Box>
+                            </Box>
+                          ))}
+                        </Box>
+                      </Box>
+                    ) : (
+                      <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <Typography color="text.secondary">
+                          No token usage data available
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Performance Metrics</CardTitle>
-                  <CardDescription>System performance indicators</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-sm font-medium">Average Confidence Score</span>
-                        <span className="text-sm font-bold">
-                          {stats?.avg_confidence_score
-                            ? `${(stats.avg_confidence_score * 100).toFixed(1)}%`
-                            : 'N/A'}
-                        </span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-green-600"
-                          style={{
-                            width: `${(stats?.avg_confidence_score || 0) * 100}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-sm font-medium">Active Users (24h)</span>
-                        <span className="text-sm font-bold">
-                          {stats?.active_users_24h || 0} / {stats?.total_users || 0}
-                        </span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600"
-                          style={{
-                            width: `${((stats?.active_users_24h || 0) / (stats?.total_users || 1)) * 100}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-sm font-medium">Avg Messages per Conversation</span>
-                        <span className="text-sm font-bold">
-                          {stats?.total_conversations
-                            ? (stats.total_messages / stats.total_conversations).toFixed(1)
-                            : 'N/A'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" gutterBottom>
+                      Performance Metrics
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      System performance indicators
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography variant="body2" fontWeight="medium">Average Confidence Score</Typography>
+                          <Typography variant="body2" fontWeight="bold">
+                            {stats?.avg_confidence_score
+                              ? `${(stats.avg_confidence_score * 100).toFixed(1)}%`
+                              : 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ height: 8, bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden' }}>
+                          <Box
+                            sx={{
+                              height: '100%',
+                              bgcolor: 'success.main',
+                              width: `${(stats?.avg_confidence_score || 0) * 100}%`,
+                            }}
+                          />
+                        </Box>
+                      </Box>
+                      <Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography variant="body2" fontWeight="medium">Active Users (24h)</Typography>
+                          <Typography variant="body2" fontWeight="bold">
+                            {stats?.active_users_24h || 0} / {stats?.total_users || 0}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ height: 8, bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden' }}>
+                          <Box
+                            sx={{
+                              height: '100%',
+                              bgcolor: 'primary.main',
+                              width: `${((stats?.active_users_24h || 0) / (stats?.total_users || 1)) * 100}%`,
+                            }}
+                          />
+                        </Box>
+                      </Box>
+                      <Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="body2" fontWeight="medium">Avg Messages per Conversation</Typography>
+                          <Typography variant="body2" fontWeight="bold">
+                            {stats?.total_conversations
+                              ? (stats.total_messages / stats.total_conversations).toFixed(1)
+                              : 'N/A'}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
 
           {/* LLM Configuration Tab */}
-          <TabsContent value="llm-config">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {activeTab === 3 && (
+            <Grid container spacing={3}>
               {/* LLM Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings className="h-5 w-5" />
-                    LLM Settings
-                  </CardTitle>
-                  <CardDescription>Language Model configurations</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-semibold text-sm mb-3 text-blue-600">Custom LLM (GenAI Lab)</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between items-start pb-2 border-b">
-                          <span className="text-muted-foreground">Base URL:</span>
-                          <span className="font-mono text-xs break-all text-right max-w-[60%]">
-                            {llmConfig?.llm.custom_base_url || 'N/A'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center pb-2 border-b">
-                          <span className="text-muted-foreground">Model:</span>
-                          <span className="font-mono text-xs">{llmConfig?.llm.custom_model || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between items-center pb-2 border-b">
-                          <span className="text-muted-foreground">API Key:</span>
-                          <span className="font-mono text-xs">{llmConfig?.llm.custom_api_key || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between items-center pb-2 border-b">
-                          <span className="text-muted-foreground">Embedding Model:</span>
-                          <span className="font-mono text-xs">{llmConfig?.llm.custom_embedding_model || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-1">
-                          <span className="text-muted-foreground">Status:</span>
-                          <Badge variant={llmConfig?.provider_status.custom_available ? 'default' : 'destructive'}>
-                            {llmConfig?.provider_status.custom_available ? '✓ Available' : '✗ Unavailable'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <SettingsIcon />
+                      <Typography variant="h6" fontWeight="bold">
+                        LLM Settings
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Language Model configurations
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
 
-                    <div className="pt-4">
-                      <h4 className="font-semibold text-sm mb-3 text-purple-600">Ollama (Local)</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between items-center pb-2 border-b">
-                          <span className="text-muted-foreground">Base URL:</span>
-                          <span className="font-mono text-xs">{llmConfig?.llm.ollama_base_url || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between items-center pb-2 border-b">
-                          <span className="text-muted-foreground">Model:</span>
-                          <span className="font-mono text-xs">{llmConfig?.llm.ollama_model || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between items-center pb-2 border-b">
-                          <span className="text-muted-foreground">Embedding Model:</span>
-                          <span className="font-mono text-xs">{llmConfig?.llm.ollama_embedding_model || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-1">
-                          <span className="text-muted-foreground">Status:</span>
-                          <Badge variant={llmConfig?.provider_status.ollama_available ? 'default' : 'destructive'}>
-                            {llmConfig?.provider_status.ollama_available ? '✓ Available' : '✗ Unavailable'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    {/* Custom LLM */}
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="body2" fontWeight="bold" color="primary.main" gutterBottom>
+                        Custom LLM (GenAI Lab)
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Base URL:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace', maxWidth: '60%', textAlign: 'right', wordBreak: 'break-all' }}>
+                            {llmConfig?.llm.custom_base_url || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Model:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            {llmConfig?.llm.custom_model || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">API Key:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            {llmConfig?.llm.custom_api_key || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Embedding Model:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            {llmConfig?.llm.custom_embedding_model || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 1 }}>
+                          <Typography variant="body2" color="text.secondary">Status:</Typography>
+                          <Chip
+                            label={llmConfig?.provider_status.custom_available ? '✓ Available' : '✗ Unavailable'}
+                            color={llmConfig?.provider_status.custom_available ? 'success' : 'error'}
+                            size="small"
+                          />
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    {/* Ollama */}
+                    <Box>
+                      <Typography variant="body2" fontWeight="bold" sx={{ color: '#9333ea' }} gutterBottom>
+                        Ollama (Local)
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Base URL:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            {llmConfig?.llm.ollama_base_url || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Model:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            {llmConfig?.llm.ollama_model || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Embedding Model:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            {llmConfig?.llm.ollama_embedding_model || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 1 }}>
+                          <Typography variant="body2" color="text.secondary">Status:</Typography>
+                          <Chip
+                            label={llmConfig?.provider_status.ollama_available ? '✓ Available' : '✗ Unavailable'}
+                            color={llmConfig?.provider_status.ollama_available ? 'success' : 'error'}
+                            size="small"
+                          />
+                        </Box>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* Agent Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Agent Settings</CardTitle>
-                  <CardDescription>Agent behavior configurations</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Temperature:</span>
-                      <span className="font-mono font-semibold">{llmConfig?.agent.temperature || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Max Iterations:</span>
-                      <span className="font-mono font-semibold">{llmConfig?.agent.max_iterations || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Enable Memory:</span>
-                      <Badge variant={llmConfig?.agent.enable_memory ? 'default' : 'secondary'}>
-                        {llmConfig?.agent.enable_memory ? 'Enabled' : 'Disabled'}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" gutterBottom>
+                      Agent Settings
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Agent behavior configurations
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Temperature:</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                          {llmConfig?.agent.temperature || 0}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Max Iterations:</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                          {llmConfig?.agent.max_iterations || 0}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">Enable Memory:</Typography>
+                        <Chip
+                          label={llmConfig?.agent.enable_memory ? 'Enabled' : 'Disabled'}
+                          color={llmConfig?.agent.enable_memory ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* RAG Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>RAG Settings</CardTitle>
-                  <CardDescription>Retrieval-Augmented Generation configurations</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Chunk Size:</span>
-                      <span className="font-mono font-semibold">{llmConfig?.rag.chunk_size || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Chunk Overlap:</span>
-                      <span className="font-mono font-semibold">{llmConfig?.rag.chunk_overlap || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Max Retrieval Docs:</span>
-                      <span className="font-mono font-semibold">{llmConfig?.rag.max_retrieval_docs || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Similarity Threshold:</span>
-                      <span className="font-mono font-semibold">{llmConfig?.rag.similarity_threshold || 0}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" gutterBottom>
+                      RAG Settings
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Retrieval-Augmented Generation configurations
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Chunk Size:</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                          {llmConfig?.rag.chunk_size || 0}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Chunk Overlap:</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                          {llmConfig?.rag.chunk_overlap || 0}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Max Retrieval Docs:</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                          {llmConfig?.rag.max_retrieval_docs || 0}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">Similarity Threshold:</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                          {llmConfig?.rag.similarity_threshold || 0}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* Explainability Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Explainability Settings</CardTitle>
-                  <CardDescription>Transparency and explainability features</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Explainability Level:</span>
-                      <Badge variant="outline">{llmConfig?.explainability.explainability_level || 'N/A'}</Badge>
-                    </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Confidence Scoring:</span>
-                      <Badge variant={llmConfig?.explainability.enable_confidence_scoring ? 'default' : 'secondary'}>
-                        {llmConfig?.explainability.enable_confidence_scoring ? 'Enabled' : 'Disabled'}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Source Attribution:</span>
-                      <Badge variant={llmConfig?.explainability.enable_source_attribution ? 'default' : 'secondary'}>
-                        {llmConfig?.explainability.enable_source_attribution ? 'Enabled' : 'Disabled'}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Reasoning Chains:</span>
-                      <Badge variant={llmConfig?.explainability.enable_reasoning_chains ? 'default' : 'secondary'}>
-                        {llmConfig?.explainability.enable_reasoning_chains ? 'Enabled' : 'Disabled'}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" gutterBottom>
+                      Explainability Settings
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Transparency and explainability features
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Explainability Level:</Typography>
+                        <Chip
+                          label={llmConfig?.explainability.explainability_level || 'N/A'}
+                          variant="outlined"
+                          size="small"
+                        />
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Confidence Scoring:</Typography>
+                        <Chip
+                          label={llmConfig?.explainability.enable_confidence_scoring ? 'Enabled' : 'Disabled'}
+                          color={llmConfig?.explainability.enable_confidence_scoring ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Source Attribution:</Typography>
+                        <Chip
+                          label={llmConfig?.explainability.enable_source_attribution ? 'Enabled' : 'Disabled'}
+                          color={llmConfig?.explainability.enable_source_attribution ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">Reasoning Chains:</Typography>
+                        <Chip
+                          label={llmConfig?.explainability.enable_reasoning_chains ? 'Enabled' : 'Disabled'}
+                          color={llmConfig?.explainability.enable_reasoning_chains ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
+      </Container>
+    </Box>
   )
 }

@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
+import { Box, CircularProgress, Typography } from '@mui/material'
 
 export default function DashboardLayout({
   children,
@@ -20,12 +21,21 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading...</p>
-        </div>
-      </div>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh'
+        }}
+      >
+        <Box sx={{ textAlign: 'center' }}>
+          <CircularProgress size={48} />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Loading...
+          </Typography>
+        </Box>
+      </Box>
     )
   }
 
