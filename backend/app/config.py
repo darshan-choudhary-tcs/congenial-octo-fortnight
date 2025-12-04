@@ -55,6 +55,41 @@ class Settings(BaseSettings):
     ENABLE_SOURCE_ATTRIBUTION: bool = True
     ENABLE_REASONING_CHAINS: bool = True
 
+    # Council of Agents
+    COUNCIL_ENABLED: bool = True
+    COUNCIL_DEFAULT_STRATEGY: str = "weighted_confidence"  # weighted_confidence, highest_confidence, majority, synthesis
+    COUNCIL_VOTING_STRATEGIES: List[str] = ["weighted_confidence", "highest_confidence", "majority", "synthesis"]
+    COUNCIL_MAX_DEBATE_ROUNDS: int = 5
+    COUNCIL_MIN_CONSENSUS_THRESHOLD: float = 0.6  # Minimum consensus level for acceptance
+    COUNCIL_ENABLE_SYNTHESIS: bool = True
+    COUNCIL_ANALYTICAL_WEIGHT: float = 1.0  # Vote weight for AnalyticalVoter
+    COUNCIL_CREATIVE_WEIGHT: float = 1.0  # Vote weight for CreativeVoter
+    COUNCIL_CRITICAL_WEIGHT: float = 1.0  # Vote weight for CriticalVoter
+    COUNCIL_ANALYTICAL_TEMPERATURE: float = 0.3  # Temperature for analytical reasoning
+    COUNCIL_CREATIVE_TEMPERATURE: float = 0.9  # Temperature for creative thinking
+    COUNCIL_CRITICAL_TEMPERATURE: float = 0.5  # Temperature for critical evaluation
+    
+    # Council LLM Provider Settings (for each agent)
+    COUNCIL_ANALYTICAL_PROVIDER: str = "ollama"  # ollama, custom, openai, deepseek, llama
+    COUNCIL_CREATIVE_PROVIDER: str = "ollama"  # ollama, custom, openai, deepseek, llama
+    COUNCIL_CRITICAL_PROVIDER: str = "ollama"  # ollama, custom, openai, deepseek, llama
+    
+    # Future LLM Provider Configurations
+    # OpenAI Settings
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    
+    # DeepSeek Settings
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_MODEL: str = "deepseek-reasoner"
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
+    
+    # Llama Settings
+    LLAMA_API_KEY: str = ""
+    LLAMA_MODEL: str = "llama-3.3-70b"
+    LLAMA_BASE_URL: str = "https://api.llama-api.com/v1"
+
     # File Upload
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".txt", ".csv", ".docx"]

@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional
 import os
 from pathlib import Path
 import pypdf
-from docx import Document as DocxDocument
+from docx import newdocument as DocxDocument
 import pandas as pd
 from loguru import logger
 

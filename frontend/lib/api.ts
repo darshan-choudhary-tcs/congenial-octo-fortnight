@@ -145,4 +145,21 @@ export const adminAPI = {
   getLLMConfig: () => api.get('/admin/llm-config'),
 }
 
+// Council API
+export const councilAPI = {
+  evaluate: (data: {
+    query: string
+    conversation_id?: string
+    provider?: string
+    voting_strategy?: string
+    include_synthesis?: boolean
+    debate_rounds?: number
+    selected_document_ids?: string[]
+  }) => api.post('/council/evaluate', data),
+
+  getStrategies: () => api.get('/council/strategies'),
+
+  getAgents: () => api.get('/council/agents'),
+}
+
 export default api

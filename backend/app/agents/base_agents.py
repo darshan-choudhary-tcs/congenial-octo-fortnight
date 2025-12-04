@@ -464,14 +464,304 @@ class GroundingAgent(BaseAgent):
                 'execution_time': (datetime.utcnow() - start_time).total_seconds()
             }
 
+class CouncilAgent(BaseAgent):
+    """
+    Base class for council voting agents
+    Council agents evaluate queries/responses and provide votes with confidence and reasoning
+    """
+
+    def __init__(self, name: str, agent_type: str, description: str, 
+                 system_prompt: str, temperature: float = 0.7, vote_weight: float = 1.0):
+        super().__init__(name, agent_type, description)
+        self.system_prompt = system_prompt
+        self.temperature = temperature
+        self.vote_weight = vote_weight
+
+    async def execute(self, input_data: Dict[str, Any], provider: str = "custom") -> Dict[str, Any]:
+        """
+        Execute council voting task
+
+        Args:
+            input_data: Should contain 'query' and optional 'context', 'retrieved_docs'
+            provider: LLM provider
+
+        Returns:
+            Vote result with response, confidence, reasoning, and supporting evidence
+        """
+        start_time = datetime.utcnow()
+
+        try:
+            query = input_data.get('query')
+            context = input_data.get('context', '')
+            retrieved_docs = input_data.get('retrieved_docs', [])
+
+            logger.info(f"[{self.name}] Evaluating query: {query[:100]}... (provider: {provider})")
+
+            # Build evaluation prompt
+            prompt = self._build_evaluation_prompt(query, context, retrieved_docs)
+
+            # Generate response with specific temperature
+            llm = llm_service.get_llm(provider)
+            
+            # Set temperature for this specific call
+            original_temp = llm.temperature if hasattr(llm, 'temperature') else 0.7
+            if hasattr(llm, 'temperature'):
+                llm.temperature = self.temperature
+
+            response_data = await llm_service.generate_response(
+                prompt=prompt,
+                provider=provider,
+                system_message=self.system_prompt
+            )
+
+            # Restore original temperature
+            if hasattr(llm, 'temperature'):
+                llm.temperature = original_temp
+
+            response_content = response_data['content']
+            token_usage = response_data.get('token_usage', {})
+
+            # Parse structured response
+            parsed = self._parse_response(response_content)
+
+            # Calculate confidence score
+            confidence = self._calculate_confidence(parsed, retrieved_docs)
+
+            result = {
+                'status': 'completed',
+                'agent': self.name,
+                'vote': {
+                    'response': parsed.get('response', response_content),
+                    'confidence': confidence,
+                    'reasoning': parsed.get('reasoning', 'No explicit reasoning provided'),
+                    'supporting_evidence': parsed.get('evidence', []),
+                    'vote_weight': self.vote_weight,
+                    'temperature': self.temperature
+                },
+                'execution_time': (datetime.utcnow() - start_time).total_seconds(),
+                'token_usage': token_usage
+            }
+
+            # Add to memory
+            self.add_to_memory({
+                'query': query[:100],
+                'confidence': confidence,
+                'summary': f"Evaluated with confidence {confidence:.2f}"
+            })
+
+            logger.info(f"[{self.name}] Vote completed (confidence: {confidence:.2f})")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"[{self.name}] Voting failed: {e}")
+            return {
+                'status': 'failed',
+                'agent': self.name,
+                'error': str(e),
+                'execution_time': (datetime.utcnow() - start_time).total_seconds()
+            }
+
+    def _build_evaluation_prompt(self, query: str, context: str, retrieved_docs: List[Dict]) -> str:
+        """Build prompt for evaluation"""
+        prompt_parts = [f"Query: {query}"]
+
+        if context:
+            prompt_parts.append(f"\nAdditional Context:\n{context}")
+
+        if retrieved_docs:
+            docs_text = "\n\n".join([
+                f"Document {i+1} (Similarity: {doc.get('similarity', 0):.2f}):\n{doc.get('content', '')[:500]}"
+                for i, doc in enumerate(retrieved_docs[:3])
+            ])
+            prompt_parts.append(f"\nRetrieved Documents:\n{docs_text}")
+
+        prompt_parts.append("""
+
+Provide your response in the following structure:
+
+RESPONSE:
+[Your detailed answer to the query]
+
+REASONING:
+[Your step-by-step reasoning process]
+
+EVIDENCE:
+[Key evidence points from the documents, if any]
+
+CONFIDENCE:
+[Your confidence level: high/medium/low and why]
+""")
+
+        return "\n".join(prompt_parts)
+
+    def _parse_response(self, response: str) -> Dict[str, Any]:
+        """Parse structured response from LLM"""
+        sections = {
+            'response': '',
+            'reasoning': '',
+            'evidence': [],
+            'confidence_text': ''
+        }
+
+        current_section = None
+        lines = response.split('\n')
+
+        for line in lines:
+            line_upper = line.strip().upper()
+            if line_upper.startswith('RESPONSE:'):
+                current_section = 'response'
+                continue
+            elif line_upper.startswith('REASONING:'):
+                current_section = 'reasoning'
+                continue
+            elif line_upper.startswith('EVIDENCE:'):
+                current_section = 'evidence'
+                continue
+            elif line_upper.startswith('CONFIDENCE:'):
+                current_section = 'confidence_text'
+                continue
+
+            if current_section and line.strip():
+                if current_section == 'evidence':
+                    sections['evidence'].append(line.strip())
+                else:
+                    sections[current_section] += line + '\n'
+
+        # Clean up sections
+        sections['response'] = sections['response'].strip() or response
+        sections['reasoning'] = sections['reasoning'].strip()
+        
+        return sections
+
+    def _calculate_confidence(self, parsed: Dict[str, Any], retrieved_docs: List[Dict]) -> float:
+        """Calculate numerical confidence score"""
+        confidence_text = parsed.get('confidence_text', '').lower()
+        
+        # Base confidence from text
+        if 'high' in confidence_text:
+            base_confidence = 0.85
+        elif 'medium' in confidence_text:
+            base_confidence = 0.65
+        elif 'low' in confidence_text:
+            base_confidence = 0.40
+        else:
+            base_confidence = 0.50
+
+        # Adjust based on document quality
+        if retrieved_docs:
+            avg_similarity = sum(doc.get('similarity', 0) for doc in retrieved_docs) / len(retrieved_docs)
+            base_confidence = (base_confidence * 0.7) + (avg_similarity * 0.3)
+
+        # Adjust based on reasoning length (more detailed = higher confidence)
+        reasoning_length = len(parsed.get('reasoning', ''))
+        if reasoning_length > 200:
+            base_confidence = min(1.0, base_confidence + 0.05)
+
+        return round(base_confidence, 3)
+
+
+class AnalyticalVoter(CouncilAgent):
+    """
+    Council agent focused on analytical, fact-based evaluation
+    Uses low temperature for consistent, logical reasoning
+    """
+
+    def __init__(self):
+        super().__init__(
+            name="AnalyticalVoter",
+            agent_type="council_analytical",
+            description="Analytical agent focused on logical reasoning and factual accuracy",
+            system_prompt="""You are an analytical expert with a focus on logical reasoning and factual accuracy.
+
+Your approach:
+- Prioritize facts and verifiable information
+- Use systematic, step-by-step reasoning
+- Identify logical connections and patterns
+- Question assumptions and look for evidence
+- Maintain objectivity and precision
+- Point out gaps in information or reasoning
+
+Evaluate queries with a critical, analytical mindset.""",
+            temperature=0.3,  # Low temperature for consistency
+            vote_weight=1.0
+        )
+
+
+class CreativeVoter(CouncilAgent):
+    """
+    Council agent focused on creative, holistic evaluation
+    Uses higher temperature for diverse perspectives
+    """
+
+    def __init__(self):
+        super().__init__(
+            name="CreativeVoter",
+            agent_type="council_creative",
+            description="Creative agent focused on innovative thinking and broader perspectives",
+            system_prompt="""You are a creative thinker who approaches problems from multiple angles.
+
+Your approach:
+- Consider unconventional perspectives and connections
+- Think broadly and holistically about implications
+- Explore alternative interpretations
+- Balance innovation with practicality
+- Synthesize information in novel ways
+- Consider context and nuances
+
+Evaluate queries with an open, creative mindset while remaining grounded in the available information.""",
+            temperature=0.9,  # Higher temperature for creativity
+            vote_weight=1.0
+        )
+
+
+class CriticalVoter(CouncilAgent):
+    """
+    Council agent focused on critical evaluation and quality assurance
+    Identifies weaknesses, biases, and potential issues
+    """
+
+    def __init__(self):
+        super().__init__(
+            name="CriticalVoter",
+            agent_type="council_critical",
+            description="Critical agent focused on identifying weaknesses and ensuring quality",
+            system_prompt="""You are a critical evaluator focused on quality assurance and identifying potential issues.
+
+Your approach:
+- Identify weaknesses, gaps, and limitations
+- Look for potential biases or unsupported claims
+- Verify consistency and coherence
+- Challenge assumptions critically
+- Assess reliability of sources and information
+- Consider potential risks or downsides
+- Ensure responses are balanced and fair
+
+Evaluate queries with a skeptical, quality-focused mindset.""",
+            temperature=0.5,  # Medium temperature for balanced criticism
+            vote_weight=1.0
+        )
+
+
 # Agent registry
 AGENT_REGISTRY = {
     'research': ResearchAgent(),
     'analyzer': AnalyzerAgent(),
     'explainability': ExplainabilityAgent(),
-    'grounding': GroundingAgent()
+    'grounding': GroundingAgent(),
+    'council_analytical': AnalyticalVoter(),
+    'council_creative': CreativeVoter(),
+    'council_critical': CriticalVoter()
 }
 
 def get_agent(agent_type: str) -> Optional[BaseAgent]:
     """Get agent by type"""
     return AGENT_REGISTRY.get(agent_type)
+
+def get_council_agents() -> List[CouncilAgent]:
+    """Get all council voting agents"""
+    return [
+        AGENT_REGISTRY['council_analytical'],
+        AGENT_REGISTRY['council_creative'],
+        AGENT_REGISTRY['council_critical']
+    ]
