@@ -31,6 +31,7 @@ htmlcov/
 .hypothesis/
 *.log
 token/
+*.db-journal
 
 # Virtual environments
 venv/

@@ -116,6 +116,55 @@ interface Document {
   auto_summary?: string | null
 }
 
+// Custom StepIcon component for progress stepper
+function CustomStepIcon({ active, completed, icon }: { active: boolean; completed: boolean; icon: React.ReactNode }) {
+  if (completed) {
+    return (
+      <CheckCircleIcon
+        sx={{
+          fontSize: { xs: 24, sm: 32 },
+          color: '#4caf50',
+          filter: 'drop-shadow(0 0 2px rgba(76, 175, 80, 0.5))',
+          transition: 'all 0.3s ease-in-out',
+          animation: 'checkmark-pop 0.3s ease-in-out',
+          '@keyframes checkmark-pop': {
+            '0%': {
+              transform: 'scale(0.8)',
+              opacity: 0.8
+            },
+            '50%': {
+              transform: 'scale(1.1)'
+            },
+            '100%': {
+              transform: 'scale(1)',
+              opacity: 1
+            }
+          }
+        }}
+      />
+    )
+  }
+
+  return (
+    <Box
+      sx={{
+        width: { xs: 20, sm: 28 },
+        height: { xs: 20, sm: 28 },
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: active ? 'primary.main' : 'action.disabled',
+        color: 'white',
+        fontSize: { xs: '0.75rem', sm: '1rem' },
+        fontWeight: 'bold'
+      }}
+    >
+      {icon}
+    </Box>
+  )
+}
+
 export default function ChatPage() {
   const { user } = useAuth()
   const { showSnackbar } = useSnackbar()
@@ -531,7 +580,7 @@ export default function ChatPage() {
       </Paper>
 
       <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 }, flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', gap: { xs: 0, md: 3 }, width: '100%' }}>
+        <Box sx={{ display: 'flex', flex: 1, overflow: 'visible', gap: { xs: 0, md: 3 }, width: '100%' }}>
           {/* Sidebar - Conversations */}
           <Drawer
             variant={drawerOpen ? "persistent" : "temporary"}
@@ -546,8 +595,10 @@ export default function ChatPage() {
                 boxSizing: 'border-box',
                 position: 'relative',
                 height: 'calc(100vh - 140px)',
-                border: 'none',
+                border: 1,
+                borderColor: 'divider',
                 bgcolor: 'background.default',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
             },
           }}
         >
@@ -693,13 +744,16 @@ export default function ChatPage() {
 
           {/* Messages */}
           <Paper
-            elevation={2}
+            elevation={0}
             sx={{
               flexGrow: 1,
               mb: 2,
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
+              border: 1,
+              borderColor: 'divider',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
             }}
           >
             <Box
@@ -803,7 +857,9 @@ export default function ChatPage() {
                           <Box sx={{
                             '& p': { m: 0, lineHeight: 1.7, fontSize: '0.95rem' },
                             '& pre': { overflowX: 'auto', borderRadius: 1, p: 1, bgcolor: message.role === 'user' ? 'rgba(0,0,0,0.1)' : 'background.default' },
-                            '& code': { fontSize: '0.9rem' }
+                            '& code': { fontSize: '0.9rem' },
+                            '& ul, & ol': { pl: 4, my: 1, lineHeight: 1.7, fontSize: '0.95rem' },
+                            '& li': { mb: 0.5 }
                           }}>
                             <ReactMarkdown>{message.content}</ReactMarkdown>
                           </Box>
@@ -822,7 +878,7 @@ export default function ChatPage() {
                                       <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
                                         {source.content.substring(0, 150)}...
                                       </Typography>
-                                      <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'primary.light' }}>
+                                      <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'rgba(255, 255, 255, 0.9)' }}>
                                         Match: {(source.similarity * 100).toFixed(1)}%
                                       </Typography>
                                     </Box>
@@ -893,24 +949,51 @@ export default function ChatPage() {
                             <Stepper activeStep={streamingState.agentStatuses.length} alternativeLabel sx={{ pt: 1, pb: 0 }}>
                               {['Research', 'Generate', 'Verify', 'Explain'].map((label, index) => {
                                 const agentNames = ['ResearchAgent', 'RAGGenerator', 'GroundingAgent', 'ExplainabilityAgent']
-                                const agentStatus = streamingState.agentStatuses.find(s => s.agent === agentNames[index])
+                                // Find all statuses for this agent and get the last one (most recent)
+                                const agentStatuses = streamingState.agentStatuses.filter(s => s.agent === agentNames[index])
+                                const agentStatus = agentStatuses[agentStatuses.length - 1]
                                 const isActive = streamingState.currentAgent === agentNames[index]
                                 const isCompleted = agentStatus?.status === 'completed'
 
+                                // Create tooltip content based on status
+                                const tooltipTitle = agentStatus ? (
+                                  <Box>
+                                    <Typography variant="caption" fontWeight="bold" display="block">
+                                      {label} {isCompleted ? '✓ Completed' : isActive ? '⟳ In Progress' : '• Started'}
+                                    </Typography>
+                                    {agentStatus.message && (
+                                      <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+                                        {agentStatus.message}
+                                      </Typography>
+                                    )}
+                                    {agentStatus.action && (
+                                      <Typography variant="caption" display="block" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+                                        Action: {agentStatus.action}
+                                      </Typography>
+                                    )}
+                                    <Typography variant="caption" display="block" sx={{ mt: 0.5, opacity: 0.8 }}>
+                                      Status: {agentStatus.status}
+                                    </Typography>
+                                  </Box>
+                                ) : `${label} - Not started`
+
                                 return (
                                   <Step key={label} completed={isCompleted} active={isActive}>
-                                    <StepLabel
-                                      StepIconProps={{
-                                        sx: {
-                                          fontSize: { xs: 20, sm: 28 },
-                                          color: isCompleted ? 'success.main' : isActive ? 'primary.main' : 'action.disabled'
-                                        }
-                                      }}
-                                    >
-                                      <Typography variant="caption" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                                        {label}
-                                      </Typography>
-                                    </StepLabel>
+                                    <Tooltip title={tooltipTitle} arrow placement="top">
+                                      <StepLabel
+                                        StepIconComponent={(props) => (
+                                          <CustomStepIcon
+                                            active={isActive}
+                                            completed={isCompleted}
+                                            icon={index + 1}
+                                          />
+                                        )}
+                                      >
+                                        <Typography variant="caption" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                                          {label}
+                                        </Typography>
+                                      </StepLabel>
+                                    </Tooltip>
                                   </Step>
                                 )
                               })}
@@ -953,12 +1036,13 @@ export default function ChatPage() {
 
           {/* Input Area */}
           <Paper
-            elevation={3}
+            elevation={0}
             sx={{
               p: { xs: 2, sm: 2.5 },
               borderRadius: 3,
               border: 1,
               borderColor: 'divider',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
             }}
           >
             <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'flex-end' }}>
@@ -996,9 +1080,9 @@ export default function ChatPage() {
                   textTransform: 'none',
                   fontSize: '1rem',
                   fontWeight: 600,
-                  boxShadow: 2,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
                   '&:hover': {
-                    boxShadow: 4,
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.16)',
                   },
                 }}
               >
