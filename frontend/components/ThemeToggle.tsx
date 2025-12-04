@@ -9,7 +9,7 @@ import ListItemText from '@mui/material/ListItemText';
 import Tooltip from '@mui/material/Tooltip';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
-import SettingsBrightnessIcon from '@mui/icons-material/SettingsBrightness';
+import ComputerIcon from '@mui/icons-material/Computer';
 import { useTheme } from '@/lib/theme-context';
 
 export function ThemeToggle() {
@@ -37,7 +37,7 @@ export function ThemeToggle() {
       case 'dark':
         return <DarkModeIcon />;
       case 'system':
-        return <SettingsBrightnessIcon />;
+        return <ComputerIcon />;
       default:
         return <LightModeIcon />;
     }
@@ -91,7 +91,7 @@ export function ThemeToggle() {
           selected={theme === 'system'}
         >
           <ListItemIcon>
-            <SettingsBrightnessIcon fontSize="small" />
+            <ComputerIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>System</ListItemText>
         </MenuItem>
