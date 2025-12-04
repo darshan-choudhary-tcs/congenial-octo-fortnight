@@ -15,6 +15,7 @@ A comprehensive full-stack AI application featuring **Retrieval-Augmented Genera
 ### Application Features
 - **Role-Based Access Control (RBAC)**: Admin, Analyst, and Viewer roles with granular permissions
 - **Document Management**: Upload and process PDF, TXT, CSV, DOCX files
+- **Sentiment Analysis**: SVM-based sentiment classification for text and CSV data
 - **Conversational AI Interface**: Interactive chat with message history
 - **Agent Monitoring**: Real-time agent activity and execution logs
 - **Confidence Scoring**: Quantified confidence in AI responses
@@ -150,6 +151,22 @@ python main.py
 # In another terminal, generate synthetic documents
 python scripts/generate_synthetic_data.py
 ```
+
+**Optional: Setup Sentiment Analysis Feature**
+```bash
+# Install ML dependencies
+pip install scikit-learn==1.4.0 nltk==3.8.1 joblib==1.3.2 imbalanced-learn==0.12.0
+
+# Create sentiment analysis table
+python scripts/migrate_add_sentiment_table.py
+
+# Add sentiment permissions
+python scripts/migrate_add_sentiment_permissions.py
+
+# Initialize pre-trained SVM model
+python scripts/setup_sentiment_model.py
+```
+📖 **See [SENTIMENT_SETUP_CHECKLIST.md](./SENTIMENT_SETUP_CHECKLIST.md) for detailed setup**
 
 6. **Start the backend server**:
 ```bash

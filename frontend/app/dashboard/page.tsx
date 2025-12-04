@@ -31,7 +31,8 @@ import {
   BarChart as BarChart3Icon,
   Logout as LogOutIcon,
   Code as CodeIcon,
-  Home as HomeIcon
+  Home as HomeIcon,
+  SentimentSatisfiedAlt as SentimentIcon
 } from '@mui/icons-material'
 import { authAPI } from '@/lib/api'
 
@@ -82,6 +83,14 @@ export default function DashboardPage() {
       href: '/dashboard/explainability',
       permission: 'explain:view',
       color: 'warning.main',
+    },
+    {
+      title: 'Sentiment Analysis',
+      description: 'SVM-based sentiment classification for text and CSV data',
+      icon: SentimentIcon,
+      href: '/dashboard/sentiment',
+      permission: 'sentiment:analyze',
+      color: 'secondary.main',
     },
     {
       title: 'Utilities',

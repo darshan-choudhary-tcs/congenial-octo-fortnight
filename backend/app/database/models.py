@@ -266,3 +266,47 @@ class TokenUsage(Base):
     conversation = relationship("Conversation")
     message = relationship("Message")
     agent_log = relationship("AgentLog")
+
+
+class SentimentAnalysisResult(Base):
+    """Model for storing sentiment analysis results"""
+    __tablename__ = "sentiment_analysis_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String, unique=True, default=lambda: str(uuid.uuid4()))
+    
+    # User and timestamp
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    completed_at = Column(DateTime, nullable=True)
+    
+    # Input configuration
+    input_type = Column(String, nullable=False)  # 'text' or 'csv'
+    text_input = Column(Text, nullable=True)  # For single text analysis
+    
+    # CSV file paths
+    original_file_path = Column(String, nullable=True)  # Original uploaded CSV
+    result_file_path = Column(String, nullable=True)  # CSV with sentiment columns
+    original_filename = Column(String, nullable=True)
+    
+    # Analysis configuration (for CSV)
+    text_column = Column(String, nullable=True)  # Column name containing text
+    sentiment_column = Column(String, default="sentiment")
+    confidence_column = Column(String, default="sentiment_confidence")
+    
+    # Results
+    results = Column(JSON, nullable=True)  # Detailed results for text or stats for CSV
+    
+    # Statistics
+    total_rows = Column(Integer, nullable=True)
+    positive_count = Column(Integer, default=0)
+    negative_count = Column(Integer, default=0)
+    neutral_count = Column(Integer, default=0)
+    average_confidence = Column(Float, nullable=True)
+    
+    # Status tracking
+    status = Column(String, default="pending")  # pending, processing, completed, failed
+    error_message = Column(Text, nullable=True)
+    
+    # Relationships
+    user = relationship("User")

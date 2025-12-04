@@ -162,4 +162,35 @@ export const councilAPI = {
   getAgents: () => api.get('/council/agents'),
 }
 
+// Sentiment Analysis API
+export const sentimentAPI = {
+  analyzeText: (text: string) =>
+    api.post('/sentiment/analyze-text', { text }),
+
+  analyzeCSV: (formData: FormData) => {
+    return api.post('/sentiment/analyze-csv', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  getColumns: (formData: FormData) => {
+    return api.post('/sentiment/get-columns', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  getResults: (limit: number = 20, offset: number = 0) =>
+    api.get(`/sentiment/results?limit=${limit}&offset=${offset}`),
+
+  getResult: (uuid: string) => api.get(`/sentiment/results/${uuid}`),
+
+  exportResult: (uuid: string) => {
+    return api.get(`/sentiment/export/${uuid}`, {
+      responseType: 'blob',
+    })
+  },
+
+  deleteResult: (uuid: string) => api.delete(`/sentiment/results/${uuid}`),
+}
+
 export default api
