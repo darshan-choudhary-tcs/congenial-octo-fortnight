@@ -597,3 +597,188 @@ async def send_message_stream(
             "X-Accel-Buffering": "no"  # Disable buffering in nginx
         }
     )
+
+@router.post("/message/direct", response_model=ChatResponse)
+async def send_message_direct(
+    chat_request: ChatRequest,
+    current_user: User = Depends(require_permission("chat:use")),
+    db: Session = Depends(get_db)
+):
+    """
+    Send message directly to LLM bypassing RAG (knowledge base).
+    Used for low-confidence follow-up queries when user wants direct LLM response.
+    """
+    import time
+    from app.services.llm_service import llm_service
+
+    try:
+        # Validate provider
+        if chat_request.provider not in ["custom", "ollama"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provider must be 'custom' or 'ollama'"
+            )
+
+        provider = chat_request.provider or current_user.preferred_llm
+
+        # Get or create conversation
+        if chat_request.conversation_id:
+            conversation = db.query(Conversation).filter(
+                Conversation.uuid == chat_request.conversation_id,
+                Conversation.user_id == current_user.id
+            ).first()
+            if not conversation:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Conversation not found"
+                )
+        else:
+            # Create new conversation
+            conversation = Conversation(
+                title=chat_request.message[:50] + "..." if len(chat_request.message) > 50 else chat_request.message,
+                user_id=current_user.id,
+                llm_provider=provider,
+                llm_model=f"{provider}_model"
+            )
+            db.add(conversation)
+            db.flush()
+
+        # Save user message
+        user_message = Message(
+            conversation_id=conversation.id,
+            role="user",
+            content=chat_request.message
+        )
+        db.add(user_message)
+        db.flush()
+
+        # Get recent conversation history for context (last 5 messages)
+        recent_messages = db.query(Message).filter(
+            Message.conversation_id == conversation.id
+        ).order_by(Message.created_at.desc()).limit(6).all()  # 6 to include current user message
+
+        recent_messages.reverse()  # Oldest to newest
+
+        # Build conversation context
+        conversation_history = []
+        for msg in recent_messages[:-1]:  # Exclude the current user message
+            conversation_history.append(f"{msg.role.capitalize()}: {msg.content}")
+
+        # Build prompt with context
+        if conversation_history:
+            prompt = f"""Previous conversation context:
+{chr(10).join(conversation_history[-5:])}
+
+Current question: {chat_request.message}
+
+Please provide a helpful, accurate response based on the question."""
+        else:
+            prompt = chat_request.message
+
+        # Record start time
+        start_time = time.time()
+
+        # Call LLM directly (bypassing RAG)
+        logger.info(f"Direct LLM query for user {current_user.username} (bypassing RAG)")
+        llm_result = await llm_service.generate_response(
+            prompt=prompt,
+            provider=provider,
+            system_message="You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user questions."
+        )
+
+        # Extract response and token usage
+        response_content = llm_result.get('content', '')
+        token_usage = llm_result.get('token_usage', {})
+
+        execution_time = time.time() - start_time
+
+        # Save assistant message (marked as direct LLM, no RAG)
+        assistant_message = Message(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=response_content,
+            retrieved_documents=[],  # No documents retrieved
+            confidence_score=1.0,  # Max confidence for direct LLM
+            low_confidence_warning=False,  # Not applicable for direct queries
+            reasoning_chain=[{
+                'step': 'direct_llm_query',
+                'description': 'Response generated directly by LLM without knowledge base search',
+                'bypass_rag': True
+            }],
+            sources=[],  # No sources from knowledge base
+            grounding_evidence=None,  # No grounding check needed
+            agents_involved=['DirectLLM']
+        )
+        db.add(assistant_message)
+        db.flush()
+
+        # Save agent log for direct query
+        agent_log = AgentLog(
+            message_id=assistant_message.id,
+            agent_name='DirectLLM',
+            agent_type='direct_llm',
+            action='generate_response',
+            input_data={'query': chat_request.message, 'bypass_rag': True},
+            output_data={'response': response_content, 'execution_time': execution_time},
+            execution_time=execution_time,
+            status='success',
+            reasoning='Direct LLM response without knowledge base search',
+            confidence=1.0
+        )
+        db.add(agent_log)
+
+        # Save token usage
+        if token_usage.get('total_tokens', 0) > 0:
+            model_name = settings.CUSTOM_LLM_MODEL if provider == "custom" else settings.OLLAMA_MODEL
+
+            cost = _calculate_token_cost(
+                provider=provider,
+                prompt_tokens=token_usage.get('prompt_tokens', 0),
+                completion_tokens=token_usage.get('completion_tokens', 0)
+            )
+
+            token_usage_record = TokenUsage(
+                user_id=current_user.id,
+                conversation_id=conversation.id,
+                message_id=assistant_message.id,
+                provider=provider,
+                model=model_name,
+                operation_type='direct_llm_query',
+                prompt_tokens=token_usage.get('prompt_tokens', 0),
+                completion_tokens=token_usage.get('completion_tokens', 0),
+                total_tokens=token_usage.get('total_tokens', 0),
+                embedding_tokens=0,
+                estimated_cost=cost,
+                currency="USD"
+            )
+            db.add(token_usage_record)
+
+        db.commit()
+
+        logger.info(f"Direct LLM query completed in {execution_time:.2f}s")
+
+        return ChatResponse(
+            conversation_id=conversation.uuid,
+            message_id=assistant_message.uuid,
+            response=response_content,
+            sources=[],  # No sources for direct LLM
+            confidence_score=1.0,
+            low_confidence_warning=False,
+            grounding=None,
+            explanation="Response generated directly by LLM without knowledge base search",
+            reasoning_chain=[{
+                'step': 'direct_llm_query',
+                'description': 'Direct LLM response bypassing RAG system',
+                'bypass_rag': True
+            }],
+            agents_involved=['DirectLLM'],
+            execution_time=execution_time
+        )
+
+    except Exception as e:
+        logger.error(f"Direct LLM query failed: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process direct LLM query: {str(e)}"
+        )

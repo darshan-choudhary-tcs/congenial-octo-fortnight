@@ -55,6 +55,12 @@ export const chatAPI = {
     include_grounding?: boolean
   }) => api.post('/chat/message', data),
 
+  sendMessageDirect: (data: {
+    message: string
+    conversation_id?: string
+    provider?: string
+  }) => api.post('/chat/message/direct', data),
+
   getConversations: () => api.get('/chat/conversations'),
 
   getMessages: (conversationId: string) =>

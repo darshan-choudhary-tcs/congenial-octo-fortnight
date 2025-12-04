@@ -80,6 +80,7 @@ interface Message {
   sources?: any[]
   confidence_score?: number
   low_confidence_warning?: boolean
+  bypass_rag?: boolean
   created_at: string
 }
 
@@ -192,6 +193,7 @@ export default function ChatPage() {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
   const [unavailableDocsCount, setUnavailableDocsCount] = useState(0)
   const [unavailableDocsIds, setUnavailableDocsIds] = useState<string[]>([])
+  const [loadingDirectLLM, setLoadingDirectLLM] = useState<string | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -519,6 +521,53 @@ export default function ChatPage() {
     }
   }
 
+  const handleDirectLLMQuery = async (messageId: string) => {
+    // Find the user message that corresponds to this assistant message
+    const messageIndex = messages.findIndex(m => m.id === messageId)
+    if (messageIndex === -1 || messageIndex === 0) return
+
+    const userMessage = messages[messageIndex - 1]
+    if (userMessage.role !== 'user') return
+
+    setLoadingDirectLLM(messageId)
+
+    try {
+      const response = await chatAPI.sendMessageDirect({
+        message: userMessage.content,
+        conversation_id: currentConversation || undefined,
+        provider,
+      })
+
+      // Update the existing message with the direct LLM response
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                content: response.data.response,
+                sources: [],
+                confidence_score: 1.0,
+                low_confidence_warning: false,
+                bypass_rag: true,
+              }
+            : msg
+        )
+      )
+
+      showSnackbar(
+        '✓ Direct LLM Response Generated - Response from AI without knowledge base context',
+        'success'
+      )
+    } catch (error: any) {
+      showSnackbar(
+        error.response?.data?.detail || 'Failed to get direct LLM response',
+        'error'
+      )
+    } finally {
+      setLoadingDirectLLM(null)
+    }
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
@@ -818,7 +867,7 @@ export default function ChatPage() {
                           <Typography variant="caption" color="text.secondary">
                             {formatDate(message.created_at)}
                           </Typography>
-                          {message.confidence_score !== undefined && (
+                          {message.confidence_score !== undefined && !message.bypass_rag && (
                             <Tooltip title={`Confidence: ${(message.confidence_score * 100).toFixed(1)}%`}>
                               <Chip
                                 icon={<VerifiedIcon sx={{ fontSize: 14 }} />}
@@ -830,13 +879,25 @@ export default function ChatPage() {
                               />
                             </Tooltip>
                           )}
-                          {message.low_confidence_warning && (
+                          {message.low_confidence_warning && !message.bypass_rag && (
                             <Tooltip title="Response may not be well-grounded in the knowledge base">
                               <Chip
                                 icon={<WarningIcon sx={{ fontSize: 14 }} />}
                                 label="Low Match"
                                 size="small"
                                 color="warning"
+                                variant="filled"
+                                sx={{ height: 22, fontSize: '0.75rem', fontWeight: 500 }}
+                              />
+                            </Tooltip>
+                          )}
+                          {message.bypass_rag && (
+                            <Tooltip title="Direct LLM response without knowledge base">
+                              <Chip
+                                icon={<BrainIcon sx={{ fontSize: 14 }} />}
+                                label="Direct LLM"
+                                size="small"
+                                color="info"
                                 variant="filled"
                                 sx={{ height: 22, fontSize: '0.75rem', fontWeight: 500 }}
                               />
@@ -854,15 +915,45 @@ export default function ChatPage() {
                             borderRadius: 3,
                           }}
                         >
-                          <Box sx={{
-                            '& p': { m: 0, lineHeight: 1.7, fontSize: '0.95rem' },
-                            '& pre': { overflowX: 'auto', borderRadius: 1, p: 1, bgcolor: message.role === 'user' ? 'rgba(0,0,0,0.1)' : 'background.default' },
-                            '& code': { fontSize: '0.9rem' },
-                            '& ul, & ol': { pl: 4, my: 1, lineHeight: 1.7, fontSize: '0.95rem' },
-                            '& li': { mb: 0.5 }
-                          }}>
-                            <ReactMarkdown>{message.content}</ReactMarkdown>
-                          </Box>
+                          {/* Show button for low confidence RAG responses */}
+                          {message.role === 'assistant' && message.low_confidence_warning && !message.bypass_rag ? (
+                            <Box sx={{ textAlign: 'center', py: 2 }}>
+                              <Alert severity="warning" sx={{ mb: 2 }}>
+                                <AlertTitle>Low Confidence Response</AlertTitle>
+                                <Typography variant="body2">
+                                  The knowledge base doesn't contain relevant information for this query.
+                                  You can generate a response directly from the LLM without knowledge base context.
+                                </Typography>
+                              </Alert>
+                              <Button
+                                variant="contained"
+                                color="primary"
+                                size="large"
+                                startIcon={loadingDirectLLM === message.id ? <CircularProgress size={20} color="inherit" /> : <BrainIcon />}
+                                onClick={() => handleDirectLLMQuery(message.id)}
+                                disabled={loadingDirectLLM === message.id}
+                                sx={{
+                                  minWidth: 240,
+                                  py: 1.5,
+                                  textTransform: 'none',
+                                  fontSize: '1rem',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {loadingDirectLLM === message.id ? 'Generating...' : 'Generate Response from LLM'}
+                              </Button>
+                            </Box>
+                          ) : (
+                            <Box sx={{
+                              '& p': { m: 0, lineHeight: 1.7, fontSize: '0.95rem' },
+                              '& pre': { overflowX: 'auto', borderRadius: 1, p: 1, bgcolor: message.role === 'user' ? 'rgba(0,0,0,0.1)' : 'background.default' },
+                              '& code': { fontSize: '0.9rem' },
+                              '& ul, & ol': { pl: 4, my: 1, lineHeight: 1.7, fontSize: '0.95rem' },
+                              '& li': { mb: 0.5 }
+                            }}>
+                              <ReactMarkdown>{message.content}</ReactMarkdown>
+                            </Box>
+                          )}
 
                           {/* Inline Source Chips */}
                           {message.sources && message.sources.length > 0 && (
