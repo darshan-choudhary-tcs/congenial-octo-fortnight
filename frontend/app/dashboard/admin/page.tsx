@@ -104,6 +104,23 @@ interface LLMConfig {
     ollama_model: string
     ollama_embedding_model: string
   }
+  vision: {
+    custom_vision_model: string
+    custom_vision_base_url: string
+    custom_vision_timeout: number
+    ollama_vision_model: string
+    ollama_vision_base_url: string
+    ollama_vision_timeout: number
+  }
+  ocr: {
+    supported_formats: string[]
+    max_file_size: number
+    max_file_size_mb: number
+    image_max_dimension: number
+    confidence_threshold: number
+    enable_preprocessing: boolean
+    pdf_dpi: number
+  }
   agent: {
     temperature: number
     max_iterations: number
@@ -124,6 +141,8 @@ interface LLMConfig {
   provider_status: {
     custom_available: boolean
     ollama_available: boolean
+    custom_vision_available: boolean
+    ollama_vision_available: boolean
   }
 }
 
@@ -1014,6 +1033,154 @@ export default function AdminPage() {
                           color={llmConfig?.explainability.enable_reasoning_chains ? 'success' : 'default'}
                           size="small"
                         />
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Vision Settings */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" gutterBottom>
+                      Vision Settings
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Vision model configurations for OCR and image analysis
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+
+                    {/* Custom Vision */}
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="body2" fontWeight="bold" color="primary.main" gutterBottom>
+                        Custom Vision (GenAI Lab)
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Model:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace', maxWidth: '60%', textAlign: 'right', wordBreak: 'break-all' }}>
+                            {llmConfig?.vision.custom_vision_model || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Base URL:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace', maxWidth: '60%', textAlign: 'right', wordBreak: 'break-all' }}>
+                            {llmConfig?.vision.custom_vision_base_url || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Timeout:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            {llmConfig?.vision.custom_vision_timeout || 0}s
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 1 }}>
+                          <Typography variant="body2" color="text.secondary">Status:</Typography>
+                          <Chip
+                            label={llmConfig?.provider_status.custom_vision_available ? '✓ Available' : '✗ Unavailable'}
+                            color={llmConfig?.provider_status.custom_vision_available ? 'success' : 'error'}
+                            size="small"
+                          />
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    {/* Ollama Vision */}
+                    <Box>
+                      <Typography variant="body2" fontWeight="bold" sx={{ color: '#9333ea' }} gutterBottom>
+                        Ollama Vision (Local)
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Model:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            {llmConfig?.vision.ollama_vision_model || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Base URL:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            {llmConfig?.vision.ollama_vision_base_url || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary">Timeout:</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            {llmConfig?.vision.ollama_vision_timeout || 0}s
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 1 }}>
+                          <Typography variant="body2" color="text.secondary">Status:</Typography>
+                          <Chip
+                            label={llmConfig?.provider_status.ollama_vision_available ? '✓ Available' : '✗ Unavailable'}
+                            color={llmConfig?.provider_status.ollama_vision_available ? 'success' : 'error'}
+                            size="small"
+                          />
+                        </Box>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* OCR Settings */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" gutterBottom>
+                      OCR Settings
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Optical Character Recognition configurations
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Max File Size:</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                          {llmConfig?.ocr.max_file_size_mb || 0} MB
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Image Max Dimension:</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                          {llmConfig?.ocr.image_max_dimension || 0}px
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Confidence Threshold:</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                          {llmConfig?.ocr.confidence_threshold || 0}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">PDF DPI:</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                          {llmConfig?.ocr.pdf_dpi || 0}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography variant="body2" color="text.secondary">Preprocessing:</Typography>
+                        <Chip
+                          label={llmConfig?.ocr.enable_preprocessing ? 'Enabled' : 'Disabled'}
+                          color={llmConfig?.ocr.enable_preprocessing ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>Supported Formats:</Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                          {llmConfig?.ocr.supported_formats?.map((format) => (
+                            <Chip
+                              key={format}
+                              label={format}
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontFamily: 'monospace' }}
+                            />
+                          ))}
+                        </Box>
                       </Box>
                     </Box>
                   </CardContent>

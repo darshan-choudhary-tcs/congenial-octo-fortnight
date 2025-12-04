@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context'
 import { chatAPI, documentsAPI } from '@/lib/api'
 import { useSnackbar } from '@/components/SnackbarProvider'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import DocumentSelectionModal from '@/components/DocumentSelectionModal'
 import { formatDate, getConfidenceColor, getConfidenceLabel } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import { useRouter } from 'next/navigation'
@@ -43,6 +44,8 @@ import {
   Step,
   StepLabel,
   Badge,
+  Alert,
+  AlertTitle,
 } from '@mui/material'
 import {
   Chat as MessageSquareIcon,
@@ -66,6 +69,8 @@ import {
   Verified as VerifiedIcon,
   Warning as WarningIcon,
   Refresh as RefreshIcon,
+  FilterList as FilterListIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material'
 
 interface Message {
@@ -102,6 +107,15 @@ interface StreamingState {
   accumulatedResponse: string
 }
 
+interface Document {
+  id: string
+  title: string | null
+  filename: string
+  file_type: string
+  scope: 'global' | 'user'
+  auto_summary?: string | null
+}
+
 export default function ChatPage() {
   const { user } = useAuth()
   const { showSnackbar } = useSnackbar()
@@ -123,12 +137,20 @@ export default function ChatPage() {
     agentStatuses: [],
     accumulatedResponse: ''
   })
+  // Document selection states
+  const [documentModalOpen, setDocumentModalOpen] = useState(false)
+  const [availableDocuments, setAvailableDocuments] = useState<Document[]>([])
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
+  const [unavailableDocsCount, setUnavailableDocsCount] = useState(0)
+  const [unavailableDocsIds, setUnavailableDocsIds] = useState<string[]>([])
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     loadConversations()
+    loadAvailableDocuments()
   }, [])
 
   useEffect(() => {
@@ -185,6 +207,15 @@ export default function ChatPage() {
     }
   }
 
+  const loadAvailableDocuments = async () => {
+    try {
+      const response = await documentsAPI.list()
+      setAvailableDocuments(response.data)
+    } catch (error) {
+      console.error('Failed to load documents:', error)
+    }
+  }
+
   const handleSendMessageStream = async () => {
     if (!input.trim() || loading || streamingState.isStreaming) return
 
@@ -228,6 +259,7 @@ export default function ChatPage() {
           conversation_id: currentConversation || undefined,
           provider,
           include_grounding: includeGrounding,
+          selected_document_ids: selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined,
         }),
         signal: abortControllerRef.current.signal,
       })
@@ -276,6 +308,11 @@ export default function ChatPage() {
                 conversationId = eventData.conversation_id
                 if (!currentConversation) {
                   setCurrentConversation(conversationId)
+                }
+                // Handle unavailable documents warning
+                if (eventData.unavailable_documents_count && eventData.unavailable_documents_count > 0) {
+                  setUnavailableDocsCount(eventData.unavailable_documents_count)
+                  setUnavailableDocsIds(eventData.unavailable_documents || [])
                 }
               }
 
@@ -346,6 +383,8 @@ export default function ChatPage() {
         // Reload conversations if new
         if (conversationId && !currentConversation) {
           await loadConversations()
+          // Clear selected documents after first message
+          setSelectedDocumentIds([])
         }
       }
 
@@ -373,6 +412,15 @@ export default function ChatPage() {
   const handleNewConversation = () => {
     setCurrentConversation(null)
     setMessages([])
+    setUnavailableDocsCount(0)
+    setUnavailableDocsIds([])
+    // Show document selection modal
+    setDocumentModalOpen(true)
+  }
+
+  const handleDocumentSelectionConfirm = (selectedIds: string[]) => {
+    setSelectedDocumentIds(selectedIds)
+    setDocumentModalOpen(false)
   }
 
   const handleDeleteConversation = async (conversationId: string, event: React.MouseEvent) => {
@@ -609,6 +657,40 @@ export default function ChatPage() {
             overflow: 'hidden',
           }}
         >
+          {/* Selected Documents Badge */}
+          {selectedDocumentIds.length > 0 && !currentConversation && (
+            <Alert
+              severity="info"
+              icon={<FilterListIcon />}
+              sx={{ mb: 2, borderRadius: 2 }}
+              action={
+                <Button color="inherit" size="small" onClick={() => setDocumentModalOpen(true)}>
+                  Edit
+                </Button>
+              }
+            >
+              <AlertTitle>Conversation Scoped to {selectedDocumentIds.length} Document{selectedDocumentIds.length !== 1 ? 's' : ''}</AlertTitle>
+              <Typography variant="caption">
+                This conversation will only search within the selected documents
+              </Typography>
+            </Alert>
+          )}
+
+          {/* Unavailable Documents Warning */}
+          {unavailableDocsCount > 0 && (
+            <Alert
+              severity="warning"
+              icon={<WarningIcon />}
+              sx={{ mb: 2, borderRadius: 2 }}
+            >
+              <AlertTitle>Some Documents Unavailable</AlertTitle>
+              <Typography variant="body2">
+                {unavailableDocsCount} of the originally selected document{unavailableDocsCount !== 1 ? 's have' : ' has'} been deleted.
+                Conversation continues with remaining documents.
+              </Typography>
+            </Alert>
+          )}
+
           {/* Messages */}
           <Paper
             elevation={2}
@@ -934,6 +1016,14 @@ export default function ChatPage() {
         </Box>
       </Box>
       </Container>
+
+      {/* Document Selection Modal */}
+      <DocumentSelectionModal
+        open={documentModalOpen}
+        onClose={() => setDocumentModalOpen(false)}
+        onConfirm={handleDocumentSelectionConfirm}
+        documents={availableDocuments}
+      />
     </Box>
   )
 }

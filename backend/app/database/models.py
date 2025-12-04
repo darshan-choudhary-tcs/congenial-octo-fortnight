@@ -150,6 +150,9 @@ class Conversation(Base):
     llm_provider = Column(String)  # custom or ollama
     llm_model = Column(String)
 
+    # Document scope for conversation
+    selected_document_ids = Column(JSON)  # List of document UUIDs to search in this conversation
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

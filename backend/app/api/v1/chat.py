@@ -11,7 +11,7 @@ import json
 import asyncio
 
 from app.database.db import get_db
-from app.database.models import User, Conversation, Message, AgentLog, TokenUsage
+from app.database.models import User, Conversation, Message, AgentLog, TokenUsage, Document
 from app.auth.security import get_current_active_user, require_permission
 from app.agents.orchestrator import orchestrator
 from app.config import settings
@@ -42,6 +42,7 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     provider: Optional[str] = "custom"  # custom or ollama
     include_grounding: bool = True
+    selected_document_ids: Optional[List[str]] = None  # Document UUIDs to scope search
 
 class ChatResponse(BaseModel):
     conversation_id: str
@@ -55,6 +56,8 @@ class ChatResponse(BaseModel):
     reasoning_chain: List[Dict[str, Any]] = []
     agents_involved: List[str] = []
     execution_time: float
+    unavailable_documents_count: Optional[int] = 0
+    unavailable_documents: Optional[List[str]] = []
 
 class ConversationResponse(BaseModel):
     id: str
@@ -99,10 +102,40 @@ async def send_message(
                 title=chat_request.message[:50] + "..." if len(chat_request.message) > 50 else chat_request.message,
                 user_id=current_user.id,
                 llm_provider=provider,
-                llm_model=f"{provider}_model"
+                llm_model=f"{provider}_model",
+                selected_document_ids=chat_request.selected_document_ids
             )
             db.add(conversation)
             db.flush()
+
+        # Validate selected documents and implement graceful degradation
+        document_filter = None
+        unavailable_count = 0
+        unavailable_docs = []
+
+        if conversation.selected_document_ids:
+            # Query which selected documents still exist
+            available_documents = db.query(Document).filter(
+                Document.uuid.in_(conversation.selected_document_ids)
+            ).all()
+
+            available_doc_ids = [doc.uuid for doc in available_documents]
+
+            # Identify unavailable documents
+            unavailable_doc_ids = set(conversation.selected_document_ids) - set(available_doc_ids)
+
+            if unavailable_doc_ids:
+                # Get filenames of unavailable documents from the missing IDs
+                unavailable_count = len(unavailable_doc_ids)
+                unavailable_docs = list(unavailable_doc_ids)
+                logger.warning(f"Conversation {conversation.uuid}: {unavailable_count} documents no longer available")
+
+            # Build document filter with available documents only
+            if available_doc_ids:
+                document_filter = {'document_id': {'$in': available_doc_ids}}
+                logger.info(f"Scoping conversation to {len(available_doc_ids)} documents")
+            else:
+                logger.warning(f"All selected documents deleted, falling back to all documents")
 
         # Save user message
         user_message = Message(
@@ -113,13 +146,14 @@ async def send_message(
         db.add(user_message)
         db.flush()
 
-        # Execute RAG with agents (searches both global and user-specific documents)
+        # Execute RAG with agents (with document filter if documents are selected)
         result = await orchestrator.execute_rag_with_agents(
             query=chat_request.message,
             provider=provider,
             explainability_level=current_user.explainability_level,
             include_grounding=chat_request.include_grounding,
-            user_id=current_user.id
+            user_id=current_user.id,
+            document_filter=document_filter
         )
 
         # Save assistant message
@@ -209,7 +243,9 @@ async def send_message(
             explanation=result.get('explanation'),
             reasoning_chain=result.get('reasoning_chain', []),
             agents_involved=result.get('agents_involved', []),
-            execution_time=result.get('execution_time', 0.0)
+            execution_time=result.get('execution_time', 0.0),
+            unavailable_documents_count=unavailable_count,
+            unavailable_documents=unavailable_docs
         )
 
     except Exception as e:
@@ -302,6 +338,59 @@ async def delete_conversation(
 
     return {"message": "Conversation deleted successfully"}
 
+@router.get("/conversations/{conversation_id}/documents")
+async def get_conversation_documents(
+    conversation_id: str,
+    current_user: User = Depends(require_permission("chat:history")),
+    db: Session = Depends(get_db)
+):
+    """Get documents associated with a conversation"""
+
+    conversation = db.query(Conversation).filter(
+        Conversation.uuid == conversation_id,
+        Conversation.user_id == current_user.id
+    ).first()
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found"
+        )
+
+    if not conversation.selected_document_ids:
+        return {
+            'selected_document_ids': [],
+            'documents': [],
+            'available_count': 0,
+            'unavailable_count': 0
+        }
+
+    # Fetch documents that still exist
+    available_documents = db.query(Document).filter(
+        Document.uuid.in_(conversation.selected_document_ids)
+    ).all()
+
+    available_doc_ids = [doc.uuid for doc in available_documents]
+    unavailable_doc_ids = set(conversation.selected_document_ids) - set(available_doc_ids)
+
+    return {
+        'selected_document_ids': conversation.selected_document_ids,
+        'documents': [
+            {
+                'id': doc.uuid,
+                'filename': doc.filename,
+                'title': doc.title,
+                'file_type': doc.file_type,
+                'scope': doc.scope or 'user',
+                'uploaded_at': doc.uploaded_at.isoformat()
+            }
+            for doc in available_documents
+        ],
+        'available_count': len(available_documents),
+        'unavailable_count': len(unavailable_doc_ids),
+        'unavailable_document_ids': list(unavailable_doc_ids)
+    }
+
 @router.post("/message/stream")
 async def send_message_stream(
     chat_request: ChatRequest,
@@ -343,10 +432,40 @@ async def send_message_stream(
                     title=chat_request.message[:50] + "..." if len(chat_request.message) > 50 else chat_request.message,
                     user_id=current_user.id,
                     llm_provider=provider,
-                    llm_model=f"{provider}_model"
+                    llm_model=f"{provider}_model",
+                    selected_document_ids=chat_request.selected_document_ids
                 )
                 db.add(conversation)
                 db.flush()
+
+            # Validate selected documents and implement graceful degradation
+            document_filter = None
+            unavailable_count = 0
+            unavailable_docs = []
+
+            if conversation.selected_document_ids:
+                # Query which selected documents still exist
+                available_documents = db.query(Document).filter(
+                    Document.uuid.in_(conversation.selected_document_ids)
+                ).all()
+
+                available_doc_ids = [doc.uuid for doc in available_documents]
+
+                # Identify unavailable documents
+                unavailable_doc_ids = set(conversation.selected_document_ids) - set(available_doc_ids)
+
+                if unavailable_doc_ids:
+                    # Track unavailable documents for graceful degradation
+                    unavailable_count = len(unavailable_doc_ids)
+                    unavailable_docs = list(unavailable_doc_ids)
+                    logger.warning(f"Conversation {conversation.uuid}: {unavailable_count} documents no longer available")
+
+                # Build document filter with available documents only
+                if available_doc_ids:
+                    document_filter = {'document_id': {'$in': available_doc_ids}}
+                    logger.info(f"Scoping conversation to {len(available_doc_ids)} documents")
+                else:
+                    logger.warning(f"All selected documents deleted, falling back to all documents")
 
             # Save user message
             user_message = Message(
@@ -357,16 +476,17 @@ async def send_message_stream(
             db.add(user_message)
             db.flush()
 
-            yield f"event: conversation\ndata: {json.dumps({'conversation_id': conversation.uuid})}\n\n"
+            yield f"event: conversation\ndata: {json.dumps({'conversation_id': conversation.uuid, 'unavailable_documents_count': unavailable_count, 'unavailable_documents': unavailable_docs})}\n\n"
             await asyncio.sleep(0.01)
 
-            # Execute RAG with streaming agent status (searches both global and user documents)
+            # Execute RAG with streaming agent status (with document filter if documents are selected)
             async for event in orchestrator.execute_rag_with_agents_stream(
                 query=chat_request.message,
                 provider=provider,
                 explainability_level=current_user.explainability_level,
                 include_grounding=chat_request.include_grounding,
-                user_id=current_user.id
+                user_id=current_user.id,
+                document_filter=document_filter
             ):
                 event_type = event.get('type', 'status')
                 event_data = event.get('data', {})

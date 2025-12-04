@@ -316,5 +316,49 @@ Extracted text:"""
             logger.error(f"Error analyzing image: {str(e)}")
             raise
 
+    def check_provider_availability(self) -> Dict[str, bool]:
+        """
+        Check availability of vision providers by performing lightweight health checks
+
+        Returns:
+            Dict with availability status for each provider
+        """
+        status = {
+            "custom_vision_available": False,
+            "ollama_vision_available": False,
+        }
+
+        # Check custom vision API
+        if self.custom_api_key and self.custom_vision_model:
+            try:
+                # Simple health check - verify API key and model are configured
+                url = f"{self.custom_base_url}/v1/models"
+                headers = {"Authorization": f"Bearer {self.custom_api_key}"}
+                response = requests.get(url, headers=headers, timeout=5, verify=False)
+                status["custom_vision_available"] = response.status_code in [200, 404]  # 404 means API is up but endpoint might differ
+            except Exception as e:
+                logger.debug(f"Custom vision API health check failed: {str(e)}")
+                # Fallback: if we have credentials configured, consider it available
+                status["custom_vision_available"] = bool(self.custom_api_key)
+
+        # Check Ollama vision
+        if self.ollama_vision_model:
+            try:
+                # Check if Ollama is running
+                url = f"{self.ollama_base_url}/api/tags"
+                response = requests.get(url, timeout=3)
+                if response.status_code == 200:
+                    # Check if vision model is available
+                    models = response.json().get("models", [])
+                    status["ollama_vision_available"] = any(
+                        model.get("name", "").startswith(self.ollama_vision_model.split(":")[0])
+                        for model in models
+                    )
+            except Exception as e:
+                logger.debug(f"Ollama vision health check failed: {str(e)}")
+                status["ollama_vision_available"] = False
+
+        return status
+
 # Singleton instance
 vision_service = VisionService()

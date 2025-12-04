@@ -155,7 +155,8 @@ export default function DocumentsPage() {
           icon={<GlobeIcon />}
           label="Global"
           size="small"
-          sx={{ bgcolor: 'secondary.main', color: 'white' }}
+          color="error"
+          variant="outlined"
         />
       )
     }
@@ -165,6 +166,7 @@ export default function DocumentsPage() {
         label="Personal"
         variant="outlined"
         size="small"
+        color="primary"
       />
     )
   }
@@ -286,7 +288,7 @@ export default function DocumentsPage() {
                 <Typography variant="caption" color="text.secondary">
                   Global Docs
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: 'secondary.main' }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'error.main' }}>
                   {documents.filter((d) => d.scope === 'global').length}
                 </Typography>
               </CardContent>

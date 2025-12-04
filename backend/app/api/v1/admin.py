@@ -303,10 +303,14 @@ def mask_api_key(key: str) -> str:
 async def get_llm_config(
     current_user: User = Depends(require_role("admin"))
 ):
-    """Get LLM configuration (admin only) with sensitive values masked"""
+    """Get LLM and Vision configuration (admin only) with sensitive values masked"""
 
     from app.config import settings
     from app.services.llm_service import llm_service
+    from app.services.vision_service import vision_service
+
+    # Get vision provider availability
+    vision_status = vision_service.check_provider_availability()
 
     return {
         "llm": {
@@ -317,6 +321,23 @@ async def get_llm_config(
             "ollama_base_url": settings.OLLAMA_BASE_URL,
             "ollama_model": settings.OLLAMA_MODEL,
             "ollama_embedding_model": settings.OLLAMA_EMBEDDING_MODEL,
+        },
+        "vision": {
+            "custom_vision_model": settings.CUSTOM_VISION_MODEL,
+            "custom_vision_base_url": settings.CUSTOM_LLM_BASE_URL,
+            "custom_vision_timeout": 180,
+            "ollama_vision_model": settings.OLLAMA_VISION_MODEL,
+            "ollama_vision_base_url": settings.OLLAMA_BASE_URL,
+            "ollama_vision_timeout": 300,
+        },
+        "ocr": {
+            "supported_formats": settings.OCR_SUPPORTED_FORMATS,
+            "max_file_size": settings.OCR_MAX_FILE_SIZE,
+            "max_file_size_mb": round(settings.OCR_MAX_FILE_SIZE / (1024 * 1024), 2),
+            "image_max_dimension": settings.OCR_IMAGE_MAX_DIMENSION,
+            "confidence_threshold": settings.OCR_CONFIDENCE_THRESHOLD,
+            "enable_preprocessing": settings.OCR_ENABLE_PREPROCESSING,
+            "pdf_dpi": settings.OCR_PDF_DPI,
         },
         "agent": {
             "temperature": settings.AGENT_TEMPERATURE,
@@ -338,5 +359,7 @@ async def get_llm_config(
         "provider_status": {
             "custom_available": llm_service.custom_client is not None,
             "ollama_available": llm_service.ollama_client is not None,
+            "custom_vision_available": vision_status["custom_vision_available"],
+            "ollama_vision_available": vision_status["ollama_vision_available"],
         }
     }

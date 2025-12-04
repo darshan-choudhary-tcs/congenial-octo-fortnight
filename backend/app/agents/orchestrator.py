@@ -22,7 +22,8 @@ class AgentOrchestrator:
         provider: str = "custom",
         explainability_level: str = "detailed",
         include_grounding: bool = True,
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        document_filter: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Execute RAG pipeline with multi-agent support
@@ -33,6 +34,7 @@ class AgentOrchestrator:
             explainability_level: Level of explanation
             include_grounding: Whether to verify grounding
             user_id: User ID for multi-tenant document search
+            document_filter: Optional filter to scope document search to specific documents
 
         Returns:
             Complete response with agent logs
@@ -45,11 +47,16 @@ class AgentOrchestrator:
 
             # Step 1: Research Agent - Retrieve documents with metadata boost
             research_agent = get_agent('research')
+            research_input = {
+                'query': query,
+                'use_metadata_boost': True  # Enable intelligent metadata filtering
+            }
+            # Add document filter if provided (for scoped conversations)
+            if document_filter:
+                research_input['filter_metadata'] = document_filter
+
             research_result = await research_agent.execute(
-                input_data={
-                    'query': query,
-                    'use_metadata_boost': True  # Enable intelligent metadata filtering
-                },
+                input_data=research_input,
                 provider=provider,
                 user_id=user_id
             )
@@ -298,7 +305,8 @@ class AgentOrchestrator:
         provider: str = "custom",
         explainability_level: str = "detailed",
         include_grounding: bool = True,
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        document_filter: Optional[Dict[str, Any]] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Execute RAG pipeline with multi-agent support, yielding status events via SSE
@@ -309,6 +317,7 @@ class AgentOrchestrator:
             explainability_level: Level of explanation
             include_grounding: Whether to verify grounding
             user_id: User ID for multi-tenant document search
+            document_filter: Optional filter to scope document search to specific documents
 
         Yields:
             Status events with agent progress
@@ -344,8 +353,13 @@ class AgentOrchestrator:
             await asyncio.sleep(0.01)
 
             research_agent = get_agent('research')
+            research_input = {'query': query}
+            # Add document filter if provided (for scoped conversations)
+            if document_filter:
+                research_input['filter_metadata'] = document_filter
+
             research_result = await research_agent.execute(
-                input_data={'query': query},
+                input_data=research_input,
                 provider=provider,
                 user_id=user_id
             )
