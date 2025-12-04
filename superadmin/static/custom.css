@@ -1,0 +1,764 @@
+/*
+ * Corporate Professional Theme for Streamlit
+ * Optimized for enterprise applications with modern, clean aesthetics
+ */
+
+/* ========================================
+   ROOT VARIABLES - Corporate Color Palette
+   ======================================== */
+:root {
+    --primary-blue: #0066CC;
+    --primary-dark: #003D7A;
+    --primary-light: #4D94DB;
+    --secondary-teal: #00B4D8;
+    --accent-gold: #F59E0B;
+    --success-green: #10B981;
+    --warning-orange: #F97316;
+    --error-red: #EF4444;
+    --neutral-50: #F9FAFB;
+    --neutral-100: #F3F4F6;
+    --neutral-200: #E5E7EB;
+    --neutral-300: #D1D5DB;
+    --neutral-400: #9CA3AF;
+    --neutral-500: #6B7280;
+    --neutral-600: #4B5563;
+    --neutral-700: #374151;
+    --neutral-800: #1F2937;
+    --neutral-900: #111827;
+    --white: #FFFFFF;
+    --shadow-sm: 0 3px 3px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* ========================================
+   GLOBAL STYLES
+   ======================================== */
+* {
+    letter-spacing: -0.01em;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+    background: linear-gradient(135deg, var(--neutral-50) 0%, var(--neutral-100) 100%);
+    color: var(--neutral-800);
+}
+
+/* ========================================
+   HEADER & NAVIGATION
+   ======================================== */
+header[data-testid="stHeader"] {
+    background: linear-gradient(90deg, var(--primary-dark) 0%, var(--primary-blue) 100%) !important;
+    box-shadow: var(--shadow-md);
+    border-bottom: 3px solid var(--accent-gold);
+}
+
+/* Toolbar buttons */
+header[data-testid="stHeader"] button {
+    color: var(--white) !important;
+}
+
+/* ========================================
+   SIDEBAR - Corporate Navigation
+   ======================================== */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-dark) 100%) !important;
+    border-right: 1px solid var(--neutral-700);
+    box-shadow: var(--shadow-xl);
+    /* max-width: 350px; */
+}
+
+section[data-testid="stSidebar"] > div {
+    background: transparent;
+}
+
+/* Sidebar text */
+section[data-testid="stSidebar"] * {
+    color: var(--neutral-100) !important;
+}
+
+section[data-testid="stSidebar"] label p {
+  color: black !important;
+}
+
+/* Sidebar titles */
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+    color: var(--white) !important;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+/* Radio buttons in sidebar */
+section[data-testid="stSidebar"] .stRadio > label {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 4px 0;
+    transition: all 0.3s ease;
+    border-left: 3px solid transparent;
+}
+
+section[data-testid="stSidebar"] .stRadio > label:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-left-color: var(--accent-gold);
+    transform: translateX(4px);
+}
+
+section[data-testid="stSidebar"] [data-baseweb="radio"] {
+    background: var(--neutral-200) !important;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+}
+
+section[data-testid="stSidebar"] [data-baseweb="radio"] > div:nth-child(1) {
+  visibility: hidden;
+  display: none;
+}
+
+/* Sidebar divider */
+section[data-testid="stSidebar"] hr {
+    border-color: var(--neutral-700);
+    margin: 1.5rem 0;
+}
+
+/* ========================================
+   MAIN CONTENT AREA
+   ======================================== */
+.main {
+    padding: 2.5rem 3rem;
+    background: var(--white);
+    border-radius: 16px;
+    margin: 1rem;
+    box-shadow: var(--shadow-lg);
+}
+
+.block-container {
+    margin-top: 3rem;
+    padding: 2rem 1rem !important;
+    max-width: 1400px !important;
+}
+
+/* ========================================
+   TYPOGRAPHY - Corporate Hierarchy
+   ======================================== */
+h1 {
+    color: var(--primary-dark) !important;
+    font-weight: 800 !important;
+    font-size: 1.5rem !important;
+    line-height: 1.2 !important;
+    margin-bottom: 1.5rem !important;
+    border-bottom: 4px solid var(--accent-gold);
+    padding-bottom: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+h2 {
+    color: var(--primary-blue) !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    margin: 1.5rem 0 1rem !important;
+    position: relative;
+    padding-left: 1rem;
+}
+
+h2::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 70%;
+    background: linear-gradient(180deg, var(--primary-blue) 0%, var(--secondary-teal) 100%);
+    border-radius: 2px;
+}
+
+h3 {
+    color: var(--neutral-700) !important;
+    font-weight: 600 !important;
+    font-size: 1.5rem !important;
+    margin: 1rem 0 0.75rem !important;
+}
+
+p, li, span {
+    color: var(--neutral-600);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+
+/* ========================================
+   BUTTONS - Corporate Action Elements
+   ======================================== */
+.stButton > button {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-dark) 100%) !important;
+    color: var(--white) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 0.75rem 2rem !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.stButton > button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: var(--shadow-lg) !important;
+}
+
+.stButton > button:hover::before {
+    left: 100%;
+}
+
+.stButton > button:active {
+    transform: translateY(0) !important;
+}
+
+/* Primary button variant */
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, var(--accent-gold) 0%, #D97706 100%) !important;
+}
+
+/* Secondary button variant */
+.stButton > button[kind="secondary"] {
+    background: var(--neutral-200) !important;
+    color: var(--neutral-700) !important;
+}
+
+.stButton > button p {
+  color: var(--white) !important;
+}
+
+.stButton > button[kind="secondary"] p {
+  background: var(--neutral-200) !important;
+  color: var(--neutral-700) !important;
+}
+
+/* ========================================
+   FORMS - Professional Input Design
+   ======================================== */
+.stForm {
+    background: linear-gradient(135deg, var(--neutral-50) 0%, var(--white) 100%);
+    border: 1px solid var(--neutral-200);
+    border-radius: 12px;
+    padding: 2.5rem;
+    box-shadow: var(--shadow-md);
+    position: relative;
+}
+
+.stForm::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary-blue) 0%, var(--secondary-teal) 100%);
+    border-radius: 12px 12px 0 0;
+}
+
+/* Text inputs */
+.stTextInput > div > div > input,
+.stTextArea > div > div > textarea,
+.stNumberInput > div > div > input {
+    border: 2px solid var(--neutral-300) !important;
+    border-radius: 8px !important;
+    padding: 0.75rem 1rem !important;
+    font-size: 1rem !important;
+    transition: all 0.3s ease !important;
+    background: var(--white) !important;
+}
+
+.stTextInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus,
+.stNumberInput > div > div > input:focus {
+    border-color: var(--primary-blue) !important;
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1) !important;
+    outline: none !important;
+}
+
+/* Input labels */
+.stTextInput > label,
+.stTextArea > label,
+.stNumberInput > label,
+.stSelectbox > label {
+    color: var(--neutral-700) !important;
+    font-weight: 600 !important;
+    font-size: 0.875rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem !important;
+}
+
+/* ========================================
+   METRICS - Executive Dashboard Cards
+   ======================================== */
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, var(--white) 0%, var(--neutral-50) 100%);
+    border: 1px solid var(--neutral-200);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+[data-testid="stMetric"]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--primary-blue) 0%, var(--secondary-teal) 100%);
+}
+
+[data-testid="stMetric"]:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-blue);
+}
+
+[data-testid="stMetric"] label {
+    color: var(--neutral-600) !important;
+    font-weight: 600 !important;
+    font-size: 0.875rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    color: var(--primary-dark) !important;
+    font-weight: 700 !important;
+    font-size: 2rem !important;
+}
+
+[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+    font-weight: 600 !important;
+}
+
+/* ========================================
+   CHAT INTERFACE - Modern Messaging
+   ======================================== */
+.stChatMessage {
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-sm);
+    border-left: 4px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.stChatMessage:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateX(4px);
+}
+
+/* User messages */
+[data-testid="stChatMessage-user"] {
+    background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-blue) 100%);
+    border-left-color: var(--primary-dark);
+    color: var(--white) !important;
+}
+
+[data-testid="stChatMessage-user"] * {
+    color: var(--white) !important;
+}
+
+/* Assistant messages */
+[data-testid="stChatMessage-assistant"] {
+    background: linear-gradient(135deg, var(--neutral-50) 0%, var(--neutral-100) 100%);
+    border-left-color: var(--secondary-teal);
+}
+
+/* ========================================
+   TABS - Corporate Navigation
+   ======================================== */
+.stTabs {
+    background: transparent;
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    background: var(--neutral-100);
+    padding: 0.5rem;
+    border-radius: 12px;
+    box-shadow: inset var(--shadow-sm);
+}
+
+.stTabs [data-baseweb="tab"] {
+    background: transparent;
+    border-radius: 8px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    color: var(--neutral-600);
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    background: rgba(0, 102, 204, 0.1);
+    color: var(--primary-blue);
+}
+
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-dark) 100%) !important;
+    color: var(--white) !important;
+    box-shadow: var(--shadow-md);
+}
+
+.stTabs [aria-selected="true"] p {
+  color: var(--white) !important;
+}
+
+/* ========================================
+   ALERTS & NOTIFICATIONS
+   ======================================== */
+.stAlert {
+    border-radius: 10px;
+    border-left: 5px solid;
+    box-shadow: var(--shadow-md);
+    font-weight: 500;
+}
+
+[data-baseweb="notification-info"] {
+    background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%);
+    border-left-color: var(--primary-blue);
+}
+
+[data-baseweb="notification-positive"] {
+    background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+    border-left-color: var(--success-green);
+}
+
+[data-baseweb="notification-warning"] {
+    background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+    border-left-color: var(--warning-orange);
+}
+
+[data-baseweb="notification-error"] {
+    background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+    border-left-color: var(--error-red);
+}
+
+/* ========================================
+   EXPANDERS - Collapsible Sections
+   ======================================== */
+.streamlit-expanderHeader {
+    background: linear-gradient(135deg, var(--neutral-100) 0%, var(--neutral-50) 100%) !important;
+    border: 1px solid var(--neutral-200);
+    border-radius: 10px !important;
+    padding: 1rem 1.25rem !important;
+    font-weight: 600 !important;
+    color: var(--neutral-800) !important;
+    transition: all 0.3s ease !important;
+}
+
+.streamlit-expanderHeader:hover {
+    background: linear-gradient(135deg, var(--neutral-200) 0%, var(--neutral-100) 100%) !important;
+    border-color: var(--primary-blue);
+    box-shadow: var(--shadow-sm);
+}
+
+.streamlit-expanderContent {
+    border: 1px solid var(--neutral-200);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 1.25rem;
+    background: var(--white);
+}
+
+/* ========================================
+   FILE UPLOADER - Drag & Drop
+   ======================================== */
+.stFileUploader {
+    border: 2px dashed var(--neutral-300);
+    border-radius: 12px;
+    padding: .5rem;
+    text-align: center;
+    background: linear-gradient(135deg, var(--neutral-50) 0%, var(--white) 100%);
+    transition: all 0.3s ease;
+}
+
+.stFileUploader:hover {
+    border-color: var(--primary-blue);
+    background: linear-gradient(135deg, #EFF6FF 0%, var(--neutral-50) 100%);
+    box-shadow: var(--shadow-md);
+}
+
+.stFileUploader section {
+    border: none !important;
+}
+
+/* ========================================
+   DATA DISPLAY - Tables & DataFrames
+   ======================================== */
+.stDataFrame {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+}
+
+.stDataFrame [data-testid="stDataFrameResizable"] {
+    border: 1px solid var(--neutral-200);
+}
+
+/* Table headers */
+.stDataFrame thead tr th {
+    background: linear-gradient(135deg, var(--neutral-800) 0%, var(--neutral-700) 100%) !important;
+    color: var(--white) !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1rem !important;
+    border: none !important;
+}
+
+/* Table rows */
+.stDataFrame tbody tr {
+    transition: all 0.2s ease;
+}
+
+.stDataFrame tbody tr:hover {
+    background: var(--neutral-50) !important;
+}
+
+.stDataFrame tbody tr:nth-child(even) {
+    background: var(--neutral-50);
+}
+
+/* ========================================
+   PROGRESS INDICATORS
+   ======================================== */
+.stProgress > div > div > div {
+    background: linear-gradient(90deg, var(--primary-blue) 0%, var(--secondary-teal) 100%) !important;
+    border-radius: 10px;
+    height: 12px !important;
+}
+
+.stProgress > div > div {
+    background: var(--neutral-200) !important;
+    border-radius: 10px;
+    height: 12px !important;
+}
+
+/* Spinner */
+.stSpinner > div {
+    border-top-color: var(--primary-blue) !important;
+    border-right-color: var(--primary-blue) !important;
+}
+
+/* ========================================
+   CODE BLOCKS - Syntax Display
+   ======================================== */
+code {
+    background: linear-gradient(135deg, var(--neutral-100) 0%, var(--neutral-50) 100%);
+    border: 1px solid var(--neutral-200);
+    border-radius: 6px;
+    padding: 0.25rem 0.5rem;
+    font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+    font-size: 0.875rem;
+    color: var(--primary-dark);
+    font-weight: 500;
+}
+
+pre {
+    background: var(--neutral-200) !important;
+    border-radius: 12px;
+    padding: 1.5rem;
+    /* box-shadow: var(--shadow-lg); */
+    border: 1px solid var(--neutral-300);
+}
+
+pre code {
+    background: transparent;
+    border: none;
+    color: var(--neutral-100);
+}
+
+/* ========================================
+   SCROLLBAR - Custom Design
+   ======================================== */
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--neutral-100);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--neutral-400) 0%, var(--neutral-500) 100%);
+    border-radius: 10px;
+    border: 2px solid var(--neutral-100);
+    transition: all 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--primary-blue) 0%, var(--primary-dark) 100%);
+}
+
+/* ========================================
+   SELECT BOX & MULTISELECT
+   ======================================== */
+.stSelectbox > div > div,
+.stMultiSelect > div > div {
+    border: 2px solid var(--neutral-300) !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease;
+}
+
+.stSelectbox > div > div:focus-within,
+.stMultiSelect > div > div:focus-within {
+    border-color: var(--primary-blue) !important;
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1) !important;
+}
+
+/* ========================================
+   DIVIDER LINES
+   ======================================== */
+hr {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, var(--neutral-300) 50%, transparent 100%);
+    margin: 2rem 0;
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+    100% {
+        background-position: 1000px 0;
+    }
+}
+
+.stSpinner > div {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* ========================================
+   RESPONSIVE DESIGN
+   ======================================== */
+@media (max-width: 768px) {
+    .main {
+        padding: 1.5rem;
+        margin: 0.5rem;
+    }
+
+    .block-container {
+        padding: 1rem 0.5rem !important;
+    }
+
+    .stForm {
+        padding: 1.5rem;
+    }
+
+    h1 {
+        font-size: 2rem !important;
+    }
+
+    h2 {
+        font-size: 1.5rem !important;
+    }
+
+    [data-testid="stMetric"] {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .main {
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    h1 {
+        font-size: 1.75rem !important;
+    }
+
+    .stButton > button {
+        padding: 0.625rem 1.25rem !important;
+        font-size: 0.875rem !important;
+    }
+}
+
+/* ========================================
+   ACCESSIBILITY ENHANCEMENTS
+   ======================================== */
+:focus-visible {
+    outline: 3px solid var(--primary-blue);
+    outline-offset: 2px;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 3px solid var(--primary-blue);
+    outline-offset: 2px;
+}
+
+/* ========================================
+   PRINT STYLES
+   ======================================== */
+@media print {
+    .main {
+        box-shadow: none;
+        border: 1px solid var(--neutral-300);
+    }
+
+    section[data-testid="stSidebar"] {
+        display: none;
+    }
+
+    .stButton {
+        display: none;
+    }
+}
