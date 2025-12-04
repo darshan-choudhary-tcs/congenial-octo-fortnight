@@ -116,7 +116,6 @@ export default function ChatPage() {
   const [includeGrounding, setIncludeGrounding] = useState(true)
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(true)
-  const [settingsAnchorEl, setSettingsAnchorEl] = useState<null | HTMLElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [streamingState, setStreamingState] = useState<StreamingState>({
     isStreaming: false,
@@ -127,7 +126,6 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
-  const settingsOpen = Boolean(settingsAnchorEl)
 
   useEffect(() => {
     loadConversations()
@@ -433,7 +431,6 @@ export default function ChatPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <IconButton
                 onClick={() => setDrawerOpen(!drawerOpen)}
-                sx={{ display: { xs: 'inline-flex', md: 'inline-flex' } }}
               >
                 {drawerOpen ? <CloseIcon /> : <MenuIcon />}
               </IconButton>
@@ -441,104 +438,49 @@ export default function ChatPage() {
                 variant="text"
                 startIcon={<HomeIcon />}
                 onClick={() => router.push('/dashboard')}
-                sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
               >
                 Dashboard
               </Button>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <MessageSquareIcon color="primary" sx={{ fontSize: { xs: 28, sm: 32 } }} />
-                <Typography variant="h5" fontWeight="bold" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                <MessageSquareIcon color="primary" />
+                <Typography variant="h5" fontWeight="bold">
                   RAG Chat
-                </Typography>
-                <Typography variant="h6" fontWeight="bold" sx={{ display: { xs: 'block', sm: 'none' } }}>
-                  Chat
                 </Typography>
               </Box>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>LLM Provider</InputLabel>
+                <Select
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value)}
+                  disabled={loading}
+                  label="LLM Provider"
+                >
+                  <MenuItem value="custom">Custom API</MenuItem>
+                  <MenuItem value="ollama">Ollama</MenuItem>
+                </Select>
+              </FormControl>
               <ThemeToggle />
-              <IconButton
-                onClick={(e) => setSettingsAnchorEl(e.currentTarget)}
-                color="primary"
+              <Button
+                variant="contained"
+                startIcon={uploadingDoc ? <CircularProgress size={20} color="inherit" /> : <UploadIcon />}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingDoc}
               >
-                <SettingsIcon />
-              </IconButton>
+                Upload Doc
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                style={{ display: 'none' }}
+                accept=".pdf,.txt,.csv,.docx"
+                onChange={handleFileUpload}
+              />
             </Box>
           </Box>
         </Container>
       </Paper>
-
-      {/* Settings Popover */}
-      <Popover
-        open={settingsOpen}
-        anchorEl={settingsAnchorEl}
-        onClose={() => setSettingsAnchorEl(null)}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-      >
-        <Box sx={{ p: 3, minWidth: 320 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Chat Settings
-          </Typography>
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>LLM Provider</InputLabel>
-            <Select
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-              disabled={loading}
-              label="LLM Provider"
-              size="small"
-            >
-              <MenuItem value="custom">Custom API</MenuItem>
-              <MenuItem value="ollama">Ollama</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={includeGrounding}
-                onChange={(e) => setIncludeGrounding(e.target.checked)}
-                size="small"
-              />
-            }
-            label={
-              <Box>
-                <Typography variant="body2">Grounding Verification</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Verify responses against source documents
-                </Typography>
-              </Box>
-            }
-            sx={{ mb: 2, alignItems: 'flex-start' }}
-          />
-          <Divider sx={{ my: 2 }} />
-          <Button
-            fullWidth
-            variant="outlined"
-            startIcon={uploadingDoc ? <CircularProgress size={20} /> : <UploadIcon />}
-            onClick={() => {
-              setSettingsAnchorEl(null)
-              fileInputRef.current?.click()
-            }}
-            disabled={uploadingDoc}
-          >
-            Upload Document
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            style={{ display: 'none' }}
-            accept=".pdf,.txt,.csv,.docx"
-            onChange={handleFileUpload}
-          />
-        </Box>
-      </Popover>
 
       <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 }, flex: 1, display: 'flex', overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', gap: { xs: 0, md: 3 }, width: '100%' }}>
@@ -639,7 +581,14 @@ export default function ChatPage() {
                         primary={conv.title}
                         secondary={`${conv.message_count} messages • ${formatDate(conv.updated_at)}`}
                         primaryTypographyProps={{ noWrap: true, fontWeight: currentConversation === conv.id ? 600 : 400 }}
-                        secondaryTypographyProps={{ variant: 'caption', fontSize: '0.7rem' }}
+                        secondaryTypographyProps={{
+                          variant: 'caption',
+                          fontSize: '0.7rem',
+                          sx: {
+                            color: currentConversation === conv.id ? 'rgba(255, 255, 255, 0.9)' : 'text.secondary',
+                            fontWeight: 500
+                          }
+                        }}
                       />
                     </ListItemButton>
                   </ListItem>
@@ -660,314 +609,328 @@ export default function ChatPage() {
             overflow: 'hidden',
           }}
         >
-        {/* Messages */}
-        <Paper
-          elevation={2}
-          sx={{
-            flexGrow: 1,
-            mb: 2,
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <Box
+          {/* Messages */}
+          <Paper
+            elevation={2}
             sx={{
               flexGrow: 1,
-              overflow: 'auto',
-              p: 3,
+              mb: 2,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
-            {messages.length === 0 ? (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%',
-                  textAlign: 'center',
-                }}
-              >
-                <BrainIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                <Typography variant="h6" gutterBottom>
-                  Start a Conversation
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 500 }}>
-                  Ask questions about your documents using RAG and multi-agent AI system.
-                  Responses include source citations and confidence scores.
-                </Typography>
-              </Box>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {messages.map((message) => (
-                  <Box
-                    key={message.id}
-                    sx={{
-                      display: 'flex',
-                      gap: 2,
-                      flexDirection: message.role === 'user' ? 'row-reverse' : 'row',
-                      alignItems: 'flex-start',
-                    }}
-                  >
-                    {/* Avatar */}
-                    <Avatar
-                      sx={{
-                        bgcolor: message.role === 'user' ? 'primary.main' : 'secondary.main',
-                        width: 40,
-                        height: 40,
-                      }}
-                    >
-                      {message.role === 'user' ? <PersonIcon /> : <SmartToyIcon />}
-                    </Avatar>
-
-                    {/* Message Content */}
-                    <Box sx={{ flexGrow: 1, maxWidth: { xs: 'calc(100% - 56px)', md: '85%' } }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                        <Typography variant="subtitle2" fontWeight="bold">
-                          {message.role === 'user' ? 'You' : 'AI Assistant'}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {formatDate(message.created_at)}
-                        </Typography>
-                        {message.confidence_score !== undefined && (
-                          <Tooltip title={`Confidence: ${(message.confidence_score * 100).toFixed(1)}%`}>
-                            <Chip
-                              icon={<VerifiedIcon sx={{ fontSize: 14 }} />}
-                              label={getConfidenceLabel(message.confidence_score)}
-                              size="small"
-                              color={message.confidence_score >= 0.7 ? 'success' : 'warning'}
-                              sx={{ height: 22, fontSize: '0.75rem' }}
-                            />
-                          </Tooltip>
-                        )}
-                        {message.low_confidence_warning && (
-                          <Tooltip title="Response may not be well-grounded in the knowledge base">
-                            <Chip
-                              icon={<WarningIcon sx={{ fontSize: 14 }} />}
-                              label="Low Match"
-                              size="small"
-                              color="warning"
-                              variant="outlined"
-                              sx={{ height: 22, fontSize: '0.75rem' }}
-                            />
-                          </Tooltip>
-                        )}
-                      </Box>
-                      <Paper
-                        elevation={message.role === 'user' ? 0 : 1}
-                        sx={{
-                          p: 2,
-                          bgcolor: message.role === 'user' ? 'primary.main' : 'background.paper',
-                          color: message.role === 'user' ? 'primary.contrastText' : 'text.primary',
-                          border: message.role === 'user' ? 'none' : 1,
-                          borderColor: 'divider',
-                          borderRadius: 3,
-                        }}
-                      >
-                        <Box sx={{ '& p': { m: 0, lineHeight: 1.6 }, '& pre': { overflowX: 'auto', borderRadius: 1, p: 1 } }}>
-                          <ReactMarkdown>{message.content}</ReactMarkdown>
-                        </Box>
-
-                        {/* Inline Source Chips */}
-                        {message.sources && message.sources.length > 0 && (
-                          <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {message.sources.map((source, idx) => (
-                              <Tooltip
-                                key={idx}
-                                title={
-                                  <Box>
-                                    <Typography variant="caption" fontWeight="bold" display="block">
-                                      {source.metadata?.document_title || `Source ${source.source_number}`}
-                                    </Typography>
-                                    <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-                                      {source.content.substring(0, 150)}...
-                                    </Typography>
-                                    <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'primary.light' }}>
-                                      Match: {(source.similarity * 100).toFixed(1)}%
-                                    </Typography>
-                                  </Box>
-                                }
-                                arrow
-                              >
-                                <Chip
-                                  icon={<FileTextIcon sx={{ fontSize: 14 }} />}
-                                  label={`Source ${source.source_number}`}
-                                  size="small"
-                                  variant={message.role === 'user' ? 'filled' : 'outlined'}
-                                  sx={{
-                                    height: 24,
-                                    fontSize: '0.75rem',
-                                    cursor: 'pointer',
-                                    '&:hover': {
-                                      bgcolor: message.role === 'user' ? 'primary.dark' : 'action.hover',
-                                    }
-                                  }}
-                                />
-                              </Tooltip>
-                            ))}
-                          </Box>
-                        )}
-                      </Paper>
-                    </Box>
-                  </Box>
-                ))}
-                {streamingState.isStreaming && (
-                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-                    {/* Avatar */}
-                    <Avatar sx={{ bgcolor: 'secondary.main', width: 40, height: 40 }}>
-                      <SmartToyIcon />
-                    </Avatar>
-
-                    {/* Streaming Content */}
-                    <Box sx={{ flexGrow: 1, maxWidth: { xs: 'calc(100% - 56px)', md: '85%' } }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                        <Typography variant="subtitle2" fontWeight="bold">
-                          AI Assistant
-                        </Typography>
-                        <Chip
-                          icon={<CircularProgress size={12} color="inherit" />}
-                          label="Processing"
-                          size="small"
-                          color="primary"
-                          sx={{ height: 22, fontSize: '0.75rem' }}
-                        />
-                      </Box>
-                      <Paper
-                        elevation={1}
-                        sx={{
-                          p: 2,
-                          bgcolor: 'background.paper',
-                          border: 1,
-                          borderColor: 'divider',
-                          borderRadius: 3,
-                        }}
-                      >
-                        {/* Compact Agent Stepper */}
-                        <Box sx={{ mb: 2 }}>
-                          <Stepper activeStep={streamingState.agentStatuses.length} alternativeLabel sx={{ pt: 1, pb: 0 }}>
-                            {['Research', 'Generate', 'Verify', 'Explain'].map((label, index) => {
-                              const agentNames = ['ResearchAgent', 'RAGGenerator', 'GroundingAgent', 'ExplainabilityAgent']
-                              const agentStatus = streamingState.agentStatuses.find(s => s.agent === agentNames[index])
-                              const isActive = streamingState.currentAgent === agentNames[index]
-                              const isCompleted = agentStatus?.status === 'completed'
-
-                              return (
-                                <Step key={label} completed={isCompleted} active={isActive}>
-                                  <StepLabel
-                                    StepIconProps={{
-                                      sx: {
-                                        fontSize: { xs: 20, sm: 28 },
-                                        color: isCompleted ? 'success.main' : isActive ? 'primary.main' : 'action.disabled'
-                                      }
-                                    }}
-                                  >
-                                    <Typography variant="caption" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                                      {label}
-                                    </Typography>
-                                  </StepLabel>
-                                </Step>
-                              )
-                            })}
-                          </Stepper>
-                        </Box>
-
-                        {/* Preview of Response */}
-                        {streamingState.accumulatedResponse && (
-                          <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                            <Box sx={{
-                              '& p': { m: 0, lineHeight: 1.6 },
-                              '& pre': { overflowX: 'auto', borderRadius: 1, p: 1 },
-                              opacity: 0.8,
-                              fontStyle: 'italic'
-                            }}>
-                              <ReactMarkdown>
-                                {streamingState.accumulatedResponse.substring(0, 300) +
-                                  (streamingState.accumulatedResponse.length > 300 ? '...' : '')}
-                              </ReactMarkdown>
-                            </Box>
-                          </Box>
-                        )}
-                      </Paper>
-                    </Box>
-                  </Box>
-                )}
-                {loading && !streamingState.isStreaming && (
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
-                    <Paper elevation={1} sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <CircularProgress size={16} />
-                      <Typography variant="body2">AI is thinking...</Typography>
-                    </Paper>
-                  </Box>
-                )}
-                <div ref={messagesEndRef} />
-              </Box>
-            )}
-          </Box>
-        </Paper>
-
-        {/* Input Area */}
-        <Paper
-          elevation={3}
-          sx={{
-            p: { xs: 2, sm: 2.5 },
-            borderRadius: 3,
-            border: 1,
-            borderColor: 'divider',
-          }}
-        >
-          <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'flex-end' }}>
-            <TextField
-              fullWidth
-              multiline
-              maxRows={4}
-              placeholder="Ask a question about your documents..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSendMessage()
-                }
-              }}
-              disabled={loading}
-              variant="outlined"
+            <Box
               sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  bgcolor: 'background.paper',
-                }
-              }}
-            />
-            <Button
-              variant="contained"
-              onClick={handleSendMessage}
-              disabled={loading || !input.trim()}
-              endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
-              sx={{
-                minWidth: { xs: 80, sm: 120 },
-                height: 56,
-                borderRadius: 2,
-                textTransform: 'none',
-                fontSize: '1rem',
-                fontWeight: 600,
-                boxShadow: 2,
-                '&:hover': {
-                  boxShadow: 4,
-                },
+                flexGrow: 1,
+                overflow: 'auto',
+                p: 3,
               }}
             >
-              <Box sx={{ display: { xs: 'none', sm: 'block' } }}>Send</Box>
-            </Button>
-          </Box>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ mt: 1, display: 'block', textAlign: 'center' }}
+              {messages.length === 0 ? (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    textAlign: 'center',
+                  }}
+                >
+                  <BrainIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    Start a Conversation
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 500 }}>
+                    Ask questions about your documents using RAG and multi-agent AI system.
+                    Responses include source citations and confidence scores.
+                  </Typography>
+                </Box>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {messages.map((message) => (
+                    <Box
+                      key={message.id}
+                      sx={{
+                        display: 'flex',
+                        gap: 2,
+                        flexDirection: message.role === 'user' ? 'row-reverse' : 'row',
+                        alignItems: 'flex-start',
+                        ml: message.role === 'user' ? 0 : 2,
+                        mr: message.role === 'user' ? 2 : 0,
+                      }}
+                    >
+                      {/* Avatar */}
+                      <Avatar
+                        sx={{
+                          bgcolor: message.role === 'user' ? 'primary.main' : 'success.main',
+                          width: 40,
+                          height: 40,
+                          color: 'white',
+                        }}
+                      >
+                        {message.role === 'user' ? <PersonIcon /> : <SmartToyIcon />}
+                      </Avatar>
+
+                      {/* Message Content */}
+                      <Box sx={{ flexGrow: 1, maxWidth: { xs: 'calc(100% - 56px)', md: '50%' } }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            {message.role === 'user' ? 'You' : 'AI Assistant'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatDate(message.created_at)}
+                          </Typography>
+                          {message.confidence_score !== undefined && (
+                            <Tooltip title={`Confidence: ${(message.confidence_score * 100).toFixed(1)}%`}>
+                              <Chip
+                                icon={<VerifiedIcon sx={{ fontSize: 14 }} />}
+                                label={getConfidenceLabel(message.confidence_score)}
+                                size="small"
+                                color={message.confidence_score >= 0.7 ? 'success' : 'warning'}
+                                variant="filled"
+                                sx={{ height: 22, fontSize: '0.75rem', fontWeight: 500 }}
+                              />
+                            </Tooltip>
+                          )}
+                          {message.low_confidence_warning && (
+                            <Tooltip title="Response may not be well-grounded in the knowledge base">
+                              <Chip
+                                icon={<WarningIcon sx={{ fontSize: 14 }} />}
+                                label="Low Match"
+                                size="small"
+                                color="warning"
+                                variant="filled"
+                                sx={{ height: 22, fontSize: '0.75rem', fontWeight: 500 }}
+                              />
+                            </Tooltip>
+                          )}
+                        </Box>
+                        <Paper
+                          elevation={message.role === 'user' ? 0 : 1}
+                          sx={{
+                            p: 2.5,
+                            bgcolor: message.role === 'user' ? 'primary.main' : 'background.paper',
+                            color: message.role === 'user' ? 'primary.contrastText' : 'text.primary',
+                            border: message.role === 'user' ? 'none' : 1,
+                            borderColor: 'divider',
+                            borderRadius: 3,
+                          }}
+                        >
+                          <Box sx={{
+                            '& p': { m: 0, lineHeight: 1.7, fontSize: '0.95rem' },
+                            '& pre': { overflowX: 'auto', borderRadius: 1, p: 1, bgcolor: message.role === 'user' ? 'rgba(0,0,0,0.1)' : 'background.default' },
+                            '& code': { fontSize: '0.9rem' }
+                          }}>
+                            <ReactMarkdown>{message.content}</ReactMarkdown>
+                          </Box>
+
+                          {/* Inline Source Chips */}
+                          {message.sources && message.sources.length > 0 && (
+                            <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                              {message.sources.map((source, idx) => (
+                                <Tooltip
+                                  key={idx}
+                                  title={
+                                    <Box>
+                                      <Typography variant="caption" fontWeight="bold" display="block">
+                                        {source.metadata?.document_title || `Source ${source.source_number}`}
+                                      </Typography>
+                                      <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+                                        {source.content.substring(0, 150)}...
+                                      </Typography>
+                                      <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'primary.light' }}>
+                                        Match: {(source.similarity * 100).toFixed(1)}%
+                                      </Typography>
+                                    </Box>
+                                  }
+                                  arrow
+                                >
+                                  <Chip
+                                    icon={<FileTextIcon sx={{ fontSize: 14 }} />}
+                                    label={`Source ${source.source_number}`}
+                                    size="small"
+                                    variant={message.role === 'user' ? 'filled' : 'outlined'}
+                                    sx={{
+                                      height: 24,
+                                      fontSize: '0.75rem',
+                                      cursor: 'pointer',
+                                      bgcolor: message.role === 'user' ? 'rgba(255, 255, 255, 0.2)' : 'background.default',
+                                      color: message.role === 'user' ? 'white' : 'text.primary',
+                                      borderColor: message.role === 'user' ? 'rgba(255, 255, 255, 0.4)' : 'divider',
+                                      '& .MuiChip-icon': {
+                                        color: message.role === 'user' ? 'white' : 'inherit',
+                                      },
+                                      '&:hover': {
+                                        bgcolor: message.role === 'user' ? 'rgba(255, 255, 255, 0.3)' : 'action.hover',
+                                      }
+                                    }}
+                                  />
+                                </Tooltip>
+                              ))}
+                            </Box>
+                          )}
+                        </Paper>
+                      </Box>
+                    </Box>
+                  ))}
+                  {streamingState.isStreaming && (
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', ml: 2 }}>
+                      {/* Avatar */}
+                      <Avatar sx={{ bgcolor: 'success.main', width: 40, height: 40, color: 'white' }}>
+                        <SmartToyIcon />
+                      </Avatar>
+
+                      {/* Streaming Content */}
+                      <Box sx={{ flexGrow: 1, maxWidth: { xs: 'calc(100% - 56px)', md: '50%' } }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            AI Assistant
+                          </Typography>
+                          <Chip
+                            icon={<CircularProgress size={12} color="inherit" />}
+                            label="Processing"
+                            size="small"
+                            color="primary"
+                            sx={{ height: 22, fontSize: '0.75rem' }}
+                          />
+                        </Box>
+                        <Paper
+                          elevation={1}
+                          sx={{
+                            p: 2,
+                            bgcolor: 'background.paper',
+                            border: 1,
+                            borderColor: 'divider',
+                            borderRadius: 3,
+                          }}
+                        >
+                          {/* Compact Agent Stepper */}
+                          <Box sx={{ mb: 2 }}>
+                            <Stepper activeStep={streamingState.agentStatuses.length} alternativeLabel sx={{ pt: 1, pb: 0 }}>
+                              {['Research', 'Generate', 'Verify', 'Explain'].map((label, index) => {
+                                const agentNames = ['ResearchAgent', 'RAGGenerator', 'GroundingAgent', 'ExplainabilityAgent']
+                                const agentStatus = streamingState.agentStatuses.find(s => s.agent === agentNames[index])
+                                const isActive = streamingState.currentAgent === agentNames[index]
+                                const isCompleted = agentStatus?.status === 'completed'
+
+                                return (
+                                  <Step key={label} completed={isCompleted} active={isActive}>
+                                    <StepLabel
+                                      StepIconProps={{
+                                        sx: {
+                                          fontSize: { xs: 20, sm: 28 },
+                                          color: isCompleted ? 'success.main' : isActive ? 'primary.main' : 'action.disabled'
+                                        }
+                                      }}
+                                    >
+                                      <Typography variant="caption" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                                        {label}
+                                      </Typography>
+                                    </StepLabel>
+                                  </Step>
+                                )
+                              })}
+                            </Stepper>
+                          </Box>
+
+                          {/* Preview of Response */}
+                          {streamingState.accumulatedResponse && (
+                            <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                              <Box sx={{
+                                '& p': { m: 0, lineHeight: 1.6 },
+                                '& pre': { overflowX: 'auto', borderRadius: 1, p: 1 },
+                                opacity: 0.8,
+                                fontStyle: 'italic'
+                              }}>
+                                <ReactMarkdown>
+                                  {streamingState.accumulatedResponse.substring(0, 300) +
+                                    (streamingState.accumulatedResponse.length > 300 ? '...' : '')}
+                                </ReactMarkdown>
+                              </Box>
+                            </Box>
+                          )}
+                        </Paper>
+                      </Box>
+                    </Box>
+                  )}
+                  {loading && !streamingState.isStreaming && (
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                      <Paper elevation={1} sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CircularProgress size={16} />
+                        <Typography variant="body2">AI is thinking...</Typography>
+                      </Paper>
+                    </Box>
+                  )}
+                  <div ref={messagesEndRef} />
+                </Box>
+              )}
+            </Box>
+          </Paper>
+
+          {/* Input Area */}
+          <Paper
+            elevation={3}
+            sx={{
+              p: { xs: 2, sm: 2.5 },
+              borderRadius: 3,
+              border: 1,
+              borderColor: 'divider',
+            }}
           >
-            Press Enter to send, Shift+Enter for new line • ⌘K for new conversation
-          </Typography>
-        </Paper>
+            <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'flex-end' }}>
+              <TextField
+                fullWidth
+                multiline
+                maxRows={4}
+                placeholder="Ask a question about your documents..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSendMessage()
+                  }
+                }}
+                disabled={loading}
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    bgcolor: 'background.paper',
+                  }
+                }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleSendMessage}
+                disabled={loading || !input.trim()}
+                endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                sx={{
+                  minWidth: { xs: 80, sm: 120 },
+                  height: 56,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  boxShadow: 2,
+                  '&:hover': {
+                    boxShadow: 4,
+                  },
+                }}
+              >
+                <Box sx={{ display: { xs: 'none', sm: 'block' } }}>Send</Box>
+              </Button>
+            </Box>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ mt: 1, display: 'block', textAlign: 'center' }}
+            >
+              Press Enter to send, Shift+Enter for new line • ⌘K for new conversation
+            </Typography>
+          </Paper>
         </Box>
       </Box>
       </Container>
