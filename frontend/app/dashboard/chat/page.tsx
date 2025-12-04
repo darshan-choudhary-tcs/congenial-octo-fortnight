@@ -391,144 +391,147 @@ export default function ChatPage() {
   }
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <Toolbar>
-          <Button
-            color="inherit"
-            startIcon={<HomeIcon />}
-            onClick={() => router.push('/dashboard')}
-            sx={{ mr: 2 }}
-          >
-            Dashboard
-          </Button>
-          <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.3)' }} />
-          <MessageSquareIcon sx={{ mr: 1 }} />
-          <Typography variant="h6" component="h1" sx={{ flexGrow: 1 }}>
-            RAG Chat
-          </Typography>
-          <FormControl size="small" sx={{ minWidth: 140, mr: 2 }}>
-            <InputLabel sx={{ color: 'inherit' }}>LLM Provider</InputLabel>
-            <Select
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-              disabled={loading}
-              label="LLM Provider"
-              sx={{ color: 'inherit', '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' } }}
-            >
-              <MenuItem value="custom">Custom API</MenuItem>
-              <MenuItem value="ollama">Ollama</MenuItem>
-            </Select>
-          </FormControl>
-          <ThemeToggle />
-          <Button
-            color="inherit"
-            startIcon={uploadingDoc ? <CircularProgress size={20} color="inherit" /> : <UploadIcon />}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadingDoc}
-            sx={{ ml: 2 }}
-          >
-            Upload Doc
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            style={{ display: 'none' }}
-            accept=".pdf,.txt,.csv,.docx"
-            onChange={handleFileUpload}
-          />
-        </Toolbar>
-      </AppBar>
-
-      {/* Sidebar - Conversations */}
-      <Drawer
-        variant="persistent"
-        anchor="left"
-        open={drawerOpen}
-        sx={{
-          width: 300,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: 300,
-            boxSizing: 'border-box',
-            mt: 8,
-            height: 'calc(100% - 64px)',
-          },
-        }}
-      >
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">Conversations</Typography>
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={handleNewConversation}
-          >
-            New
-          </Button>
-        </Box>
-        <Divider />
-        <Box sx={{ overflow: 'auto', flexGrow: 1 }}>
-          {loadingConversations ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress />
+      <Paper sx={{ borderRadius: 0, borderBottom: 1, borderColor: 'divider', zIndex: (theme) => theme.zIndex.drawer + 1 }} elevation={1}>
+        <Container maxWidth="xl">
+          <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button
+                variant="text"
+                startIcon={<HomeIcon />}
+                onClick={() => router.push('/dashboard')}
+              >
+                Dashboard
+              </Button>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <MessageSquareIcon color="primary" />
+                <Typography variant="h5" fontWeight="bold">
+                  RAG Chat
+                </Typography>
+              </Box>
             </Box>
-          ) : conversations.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 4, px: 2, color: 'text.secondary' }}>
-              <Typography>No conversations yet</Typography>
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                Start chatting to create one
-              </Typography>
-            </Box>
-          ) : (
-            <List>
-              {conversations.map((conv) => (
-                <ListItem
-                  key={conv.id}
-                  disablePadding
-                  secondaryAction={
-                    <IconButton
-                      edge="end"
-                      onClick={(e) => handleDeleteConversation(conv.id, e)}
-                      size="small"
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  }
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>LLM Provider</InputLabel>
+                <Select
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value)}
+                  disabled={loading}
+                  label="LLM Provider"
                 >
-                  <ListItemButton
-                    selected={currentConversation === conv.id}
-                    onClick={() => setCurrentConversation(conv.id)}
-                  >
-                    <ListItemText
-                      primary={conv.title}
-                      secondary={`${conv.message_count} messages • ${formatDate(conv.updated_at)}`}
-                      primaryTypographyProps={{ noWrap: true }}
-                      secondaryTypographyProps={{ variant: 'caption' }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </Box>
-      </Drawer>
+                  <MenuItem value="custom">Custom API</MenuItem>
+                  <MenuItem value="ollama">Ollama</MenuItem>
+                </Select>
+              </FormControl>
+              <ThemeToggle />
+              <Button
+                variant="contained"
+                startIcon={uploadingDoc ? <CircularProgress size={20} color="inherit" /> : <UploadIcon />}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingDoc}
+              >
+                Upload Doc
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                style={{ display: 'none' }}
+                accept=".pdf,.txt,.csv,.docx"
+                onChange={handleFileUpload}
+              />
+            </Box>
+          </Box>
+        </Container>
+      </Paper>
 
-      {/* Main Chat Area */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          ml: drawerOpen ? 0 : 0,
-          mt: 8,
-          p: 3,
-          display: 'flex',
-          flexDirection: 'column',
-          height: 'calc(100vh - 64px)',
-          overflow: 'hidden',
-        }}
-      >
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', gap: 3 }}>
+          {/* Sidebar - Conversations */}
+          <Drawer
+            variant="persistent"
+            anchor="left"
+            open={drawerOpen}
+            sx={{
+              width: 300,
+              flexShrink: 0,
+              '& .MuiDrawer-paper': {
+                width: 300,
+                boxSizing: 'border-box',
+                position: 'relative',
+                height: 'calc(100vh - 140px)',
+            },
+          }}
+        >
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">Conversations</Typography>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={handleNewConversation}
+            >
+              New
+            </Button>
+          </Box>
+          <Divider />
+          <Box sx={{ overflow: 'auto', flexGrow: 1 }}>
+            {loadingConversations ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : conversations.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 4, px: 2, color: 'text.secondary' }}>
+                <Typography>No conversations yet</Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  Start chatting to create one
+                </Typography>
+              </Box>
+            ) : (
+              <List>
+                {conversations.map((conv) => (
+                  <ListItem
+                    key={conv.id}
+                    disablePadding
+                    secondaryAction={
+                      <IconButton
+                        edge="end"
+                        onClick={(e) => handleDeleteConversation(conv.id, e)}
+                        size="small"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    }
+                  >
+                    <ListItemButton
+                      selected={currentConversation === conv.id}
+                      onClick={() => setCurrentConversation(conv.id)}
+                    >
+                      <ListItemText
+                        primary={conv.title}
+                        secondary={`${conv.message_count} messages • ${formatDate(conv.updated_at)}`}
+                        primaryTypographyProps={{ noWrap: true }}
+                        secondaryTypographyProps={{ variant: 'caption' }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Box>
+        </Drawer>
+
+        {/* Main Chat Area */}
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            height: 'calc(100vh - 140px)',
+            overflow: 'hidden',
+          }}
+        >
         {/* Messages */}
         <Paper
           elevation={2}
@@ -829,7 +832,9 @@ export default function ChatPage() {
             </IconButton>
           </Box>
         </Paper>
+        </Box>
       </Box>
+      </Container>
     </Box>
   )
 }

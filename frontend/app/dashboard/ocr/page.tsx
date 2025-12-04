@@ -33,8 +33,11 @@ import {
   Download as DownloadIcon,
   Save as SaveIcon,
   CheckCircle as CheckCircleIcon,
+  Home as HomeIcon,
+  CameraAlt as CameraIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from '@/components/SnackbarProvider';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface OCRPageResult {
   page_number: number;
@@ -173,23 +176,35 @@ export default function OCRPage() {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
-        <IconButton onClick={() => router.push('/dashboard')}>
-          <ArrowLeftIcon />
-        </IconButton>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700 }}>
-            OCR Processing
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Extract text from images and PDFs using AI vision models
-          </Typography>
-        </Box>
-      </Box>
+      <Paper sx={{ borderRadius: 0, borderBottom: 1, borderColor: 'divider' }} elevation={1}>
+        <Container maxWidth="xl">
+          <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button
+                variant="text"
+                startIcon={<HomeIcon />}
+                onClick={() => router.push('/dashboard')}
+              >
+                Dashboard
+              </Button>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CameraIcon color="primary" />
+                <Typography variant="h5" fontWeight="bold">
+                  OCR Processing
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <ThemeToggle />
+            </Box>
+          </Box>
+        </Container>
+      </Paper>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3 }}>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3 }}>
         {/* Left Column - Upload & Settings */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* File Upload Card */}
@@ -541,6 +556,7 @@ export default function OCRPage() {
           )}
         </Box>
       </Box>
-    </Container>
+      </Container>
+    </Box>
   );
 }

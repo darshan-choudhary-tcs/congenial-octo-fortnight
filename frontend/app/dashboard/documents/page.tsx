@@ -172,67 +172,73 @@ export default function DocumentsPage() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <AppBar position="static" color="default" elevation={1}>
-        <Toolbar>
-          <Button
-            startIcon={<HomeIcon />}
-            onClick={() => router.push('/dashboard')}
-            sx={{ mr: 3 }}
-          >
-            Dashboard
-          </Button>
-          <FileTextIcon sx={{ fontSize: 28, color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700 }}>
-            Document Management
-          </Typography>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel>Vector Store</InputLabel>
-              <Select
-                value={provider}
-                onChange={(e) => setProvider(e.target.value)}
-                label="Vector Store"
+      <Paper sx={{ borderRadius: 0, borderBottom: 1, borderColor: 'divider' }} elevation={1}>
+        <Container maxWidth="xl">
+          <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button
+                variant="text"
+                startIcon={<HomeIcon />}
+                onClick={() => router.push('/dashboard')}
               >
-                <MenuItem value="custom">Custom API</MenuItem>
-                <MenuItem value="ollama">Ollama</MenuItem>
-              </Select>
-            </FormControl>
-            {isAdmin && (
+                Dashboard
+              </Button>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <FileTextIcon color="primary" />
+                <Typography variant="h5" fontWeight="bold">
+                  Document Management
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <FormControl size="small" sx={{ minWidth: 140 }}>
-                <InputLabel>Upload To</InputLabel>
+                <InputLabel>Vector Store</InputLabel>
                 <Select
-                  value={uploadScope}
-                  onChange={(e) => setUploadScope(e.target.value as 'user' | 'global')}
-                  label="Upload To"
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value)}
+                  label="Vector Store"
                 >
-                  <MenuItem value="user">Personal</MenuItem>
-                  <MenuItem value="global">Global KB</MenuItem>
+                  <MenuItem value="custom">Custom API</MenuItem>
+                  <MenuItem value="ollama">Ollama</MenuItem>
                 </Select>
               </FormControl>
-            )}
-            <ThemeToggle />
-            <Box>
-              <input
-                id="file-upload"
-                type="file"
-                style={{ display: 'none' }}
-                accept=".pdf,.txt,.csv,.docx"
-                onChange={handleUpload}
-                disabled={uploading}
-              />
-              <Button
-                component="label"
-                htmlFor="file-upload"
-                variant="contained"
-                startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
-                disabled={uploading}
-              >
-                {uploading ? 'Uploading...' : (uploadScope === 'global' && isAdmin ? 'Upload to Global KB' : 'Upload Document')}
-              </Button>
+              {isAdmin && (
+                <FormControl size="small" sx={{ minWidth: 140 }}>
+                  <InputLabel>Upload To</InputLabel>
+                  <Select
+                    value={uploadScope}
+                    onChange={(e) => setUploadScope(e.target.value as 'user' | 'global')}
+                    label="Upload To"
+                  >
+                    <MenuItem value="user">Personal</MenuItem>
+                    <MenuItem value="global">Global KB</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+              <ThemeToggle />
+              <Box>
+                <input
+                  id="file-upload"
+                  type="file"
+                  style={{ display: 'none' }}
+                  accept=".pdf,.txt,.csv,.docx"
+                  onChange={handleUpload}
+                  disabled={uploading}
+                />
+                <Button
+                  component="label"
+                  htmlFor="file-upload"
+                  variant="contained"
+                  startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
+                  disabled={uploading}
+                >
+                  {uploading ? 'Uploading...' : (uploadScope === 'global' && isAdmin ? 'Upload to Global KB' : 'Upload Document')}
+                </Button>
+              </Box>
             </Box>
-          </Stack>
-        </Toolbar>
-      </AppBar>
+          </Box>
+        </Container>
+      </Paper>
 
       <Container maxWidth="xl" sx={{ py: 4 }}>
         {/* Info Banner for Admins */}

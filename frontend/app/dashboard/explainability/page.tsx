@@ -152,21 +152,20 @@ export default function ExplainabilityPage() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <Paper elevation={0} sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+      <Paper sx={{ borderRadius: 0, borderBottom: 1, borderColor: 'divider' }} elevation={1}>
         <Container maxWidth="xl">
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, flexWrap: 'wrap', gap: 2 }}>
+          <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Button
-                variant="outlined"
-                size="small"
+                variant="text"
                 startIcon={<HomeIcon />}
                 onClick={() => router.push('/dashboard')}
               >
                 Dashboard
               </Button>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <EyeIcon color="primary" sx={{ fontSize: 32 }} />
-                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                <EyeIcon color="primary" />
+                <Typography variant="h5" fontWeight="bold">
                   Explainability Dashboard
                 </Typography>
               </Box>
@@ -192,7 +191,7 @@ export default function ExplainabilityPage() {
         </Container>
       </Paper>
 
-      <Container maxWidth="xl">
+      <Container maxWidth="xl" sx={{ py: 4 }}>
         {/* Stats Cards */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 4 }}>
           <Card>

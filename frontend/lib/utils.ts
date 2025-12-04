@@ -28,5 +28,5 @@ export function getConfidenceLabel(confidence: number): string {
   if (confidence >= 0.50) return 'Good ' + confidence.toFixed(2)
   if (confidence >= 0.40) return 'Moderate ' + confidence.toFixed(2)
   if (confidence >= 0.30) return 'Low ' + confidence.toFixed(2)
-  return 'Very Low ' + confidence.toFixed(2)
+  return 'Very Low '
 }

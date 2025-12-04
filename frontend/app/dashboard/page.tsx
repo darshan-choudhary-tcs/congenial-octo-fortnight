@@ -30,7 +30,8 @@ import {
   Group as UsersIcon,
   BarChart as BarChart3Icon,
   Logout as LogOutIcon,
-  Code as CodeIcon
+  Code as CodeIcon,
+  Home as HomeIcon
 } from '@mui/icons-material'
 import { authAPI } from '@/lib/api'
 
@@ -126,37 +127,39 @@ export default function DashboardPage() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <AppBar position="static" color="default" elevation={1}>
-        <Toolbar>
-          <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-              RAG & Multi-Agent System
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Advanced AI with Explainability
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                {user?.full_name || user?.username}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                {user?.roles.join(', ')}
-              </Typography>
+      <Paper sx={{ borderRadius: 0, borderBottom: 1, borderColor: 'divider' }} elevation={1}>
+        <Container maxWidth="xl">
+          <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <HomeIcon color="primary" />
+                <Typography variant="h5" fontWeight="bold">
+                  Dashboard
+                </Typography>
+              </Box>
             </Box>
-            <ThemeToggle />
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<LogOutIcon />}
-              onClick={logout}
-            >
-              Logout
-            </Button>
-          </Stack>
-        </Toolbar>
-      </AppBar>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {user?.full_name || user?.username}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                  {user?.roles.join(', ')}
+                </Typography>
+              </Box>
+              <ThemeToggle />
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LogOutIcon />}
+                onClick={logout}
+              >
+                Logout
+              </Button>
+            </Box>
+          </Box>
+        </Container>
+      </Paper>
 
       {/* Main Content */}
       <Container maxWidth="xl" sx={{ py: 4 }}>
