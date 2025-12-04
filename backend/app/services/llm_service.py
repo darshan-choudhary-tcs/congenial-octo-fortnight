@@ -7,6 +7,7 @@ from langchain_ollama import OllamaLLM, OllamaEmbeddings
 import httpx
 import requests
 import time
+import json
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -184,6 +185,286 @@ class LLMService:
 
         except Exception as e:
             logger.error(f"LLM invocation failed: {e}")
+            raise
+
+    async def generate_document_summary(
+        self,
+        text: str,
+        provider: str = "custom",
+        max_length: int = 10000
+    ) -> Dict[str, Any]:
+        """
+        Generate a concise summary of a document using LLM
+
+        Args:
+            text: Document text content
+            provider: LLM provider to use
+            max_length: Maximum text length to process (tokens)
+
+        Returns:
+            Dictionary with 'summary' and 'token_usage' keys
+        """
+        try:
+            # Truncate text if too long (approximate: 1 token ≈ 4 chars)
+            if len(text) > max_length * 4:
+                text = text[:max_length * 4]
+                logger.warning(f"Document text truncated to {max_length * 4} characters for summarization")
+
+            system_message = (
+                "You are an expert document analyst. Create concise, informative succinct summary. "
+                "Output ONLY the summary text, no preamble, no explanations, no meta-commentary. "
+                "Start directly with the content summary."
+            )
+
+            prompt = f"""Summarize the following document in 200-300 words. Include main points and key information. Write in clear, professional language. Output ONLY the summary, nothing else.
+
+Document:
+{text}
+
+Summary:"""
+
+            result = await self.generate_response(
+                prompt=prompt,
+                provider=provider,
+                system_message=system_message
+            )
+
+            # Clean up common preamble patterns
+            summary = result["content"].strip()
+
+            # Remove common preamble phrases
+            preamble_patterns = [
+                "Unfortunately, you haven't provided the full document. However, based on the information given, here's a concise summary:",
+                "Here's a concise summary:",
+                "Here is a summary:",
+                "Summary:",
+                "Based on the information provided:",
+                "Based on the document:",
+            ]
+
+            for pattern in preamble_patterns:
+                if summary.startswith(pattern):
+                    summary = summary[len(pattern):].strip()
+
+            return {
+                "summary": summary,
+                "token_usage": result["token_usage"]
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to generate document summary: {e}")
+            raise
+
+    async def extract_keywords(
+        self,
+        text: str,
+        provider: str = "custom",
+        max_keywords: int = 10,
+        max_length: int = 10000
+    ) -> Dict[str, Any]:
+        """
+        Extract relevant keywords from document text using LLM
+
+        Args:
+            text: Document text content
+            provider: LLM provider to use
+            max_keywords: Maximum number of keywords to extract
+            max_length: Maximum text length to process
+
+        Returns:
+            Dictionary with 'keywords' (list) and 'token_usage' keys
+        """
+        try:
+            # Truncate text if too long
+            if len(text) > max_length * 4:
+                text = text[:max_length * 4]
+
+            system_message = (
+                "You are an expert at analyzing documents and extracting key terms. "
+                "Extract the most important and relevant keywords that represent the core topics "
+                "and concepts in the document. Return ONLY a JSON array of keywords, nothing else."
+            )
+
+            prompt = f"""Extract {max_keywords} most important keywords from this document.
+Return them as a JSON array like: ["keyword1", "keyword2", "keyword3"]
+
+Document:
+{text}
+
+Keywords (JSON array only):"""
+
+            result = await self.generate_response(
+                prompt=prompt,
+                provider=provider,
+                system_message=system_message
+            )
+
+            # Parse the JSON response
+            content = result["content"].strip()
+
+            # Try to extract JSON array from response
+            try:
+                # Look for JSON array pattern
+                if content.startswith('[') and content.endswith(']'):
+                    keywords = json.loads(content)
+                else:
+                    # Try to find JSON array in the content
+                    import re
+                    json_match = re.search(r'\[.*?\]', content, re.DOTALL)
+                    if json_match:
+                        keywords = json.loads(json_match.group())
+                    else:
+                        # Fallback: split by commas or newlines
+                        keywords = [k.strip(' "\n-*') for k in content.split(',') if k.strip()]
+                        keywords = keywords[:max_keywords]
+            except json.JSONDecodeError:
+                # Fallback parsing
+                keywords = [k.strip(' "\n-*') for k in content.split(',') if k.strip()]
+                keywords = keywords[:max_keywords]
+
+            return {
+                "keywords": keywords,
+                "token_usage": result["token_usage"]
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to extract keywords: {e}")
+            raise
+
+    async def classify_topics(
+        self,
+        text: str,
+        provider: str = "custom",
+        max_topics: int = 5,
+        max_length: int = 10000
+    ) -> Dict[str, Any]:
+        """
+        Classify document into main topics/categories using LLM
+
+        Args:
+            text: Document text content
+            provider: LLM provider to use
+            max_topics: Maximum number of topics to identify
+            max_length: Maximum text length to process
+
+        Returns:
+            Dictionary with 'topics' (list) and 'token_usage' keys
+        """
+        try:
+            # Truncate text if too long
+            if len(text) > max_length * 4:
+                text = text[:max_length * 4]
+
+            system_message = (
+                "You are an expert document classifier. Analyze the document and identify "
+                "the main topics or themes it covers. Return ONLY a JSON array of topics, nothing else."
+            )
+
+            prompt = f"""Identify the {max_topics} main topics or themes in this document.
+Return them as a JSON array like: ["topic1", "topic2", "topic3"]
+
+Document:
+{text}
+
+Topics (JSON array only):"""
+
+            result = await self.generate_response(
+                prompt=prompt,
+                provider=provider,
+                system_message=system_message
+            )
+
+            # Parse the JSON response
+            content = result["content"].strip()
+
+            # Try to extract JSON array from response
+            try:
+                if content.startswith('[') and content.endswith(']'):
+                    topics = json.loads(content)
+                else:
+                    # Try to find JSON array in the content
+                    import re
+                    json_match = re.search(r'\[.*?\]', content, re.DOTALL)
+                    if json_match:
+                        topics = json.loads(json_match.group())
+                    else:
+                        # Fallback: split by commas or newlines
+                        topics = [t.strip(' "\n-*') for t in content.split(',') if t.strip()]
+                        topics = topics[:max_topics]
+            except json.JSONDecodeError:
+                # Fallback parsing
+                topics = [t.strip(' "\n-*') for t in content.split(',') if t.strip()]
+                topics = topics[:max_topics]
+
+            return {
+                "topics": topics,
+                "token_usage": result["token_usage"]
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to classify topics: {e}")
+            raise
+
+    async def determine_content_type(
+        self,
+        text: str,
+        provider: str = "custom",
+        max_length: int = 5000
+    ) -> Dict[str, Any]:
+        """
+        Determine the content type/genre of a document
+
+        Args:
+            text: Document text content
+            provider: LLM provider to use
+            max_length: Maximum text length to process
+
+        Returns:
+            Dictionary with 'content_type' and 'token_usage' keys
+        """
+        try:
+            # Truncate text if too long
+            if len(text) > max_length * 4:
+                text = text[:max_length * 4]
+
+            system_message = (
+                "You are a document classifier. Classify the document into one of these categories: "
+                "technical, legal, financial, academic, business, medical, general. "
+                "Return ONLY the category name, nothing else."
+            )
+
+            prompt = f"""Classify this document into one category: technical, legal, financial, academic, business, medical, or general.
+
+Document:
+{text}
+
+Category:"""
+
+            result = await self.generate_response(
+                prompt=prompt,
+                provider=provider,
+                system_message=system_message
+            )
+
+            content_type = result["content"].strip().lower()
+            # Clean up the response
+            valid_types = ["technical", "legal", "financial", "academic", "business", "medical", "general"]
+            if content_type not in valid_types:
+                # Try to find a valid type in the response
+                for valid_type in valid_types:
+                    if valid_type in content_type:
+                        content_type = valid_type
+                        break
+                else:
+                    content_type = "general"
+
+            return {
+                "content_type": content_type,
+                "token_usage": result["token_usage"]
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to determine content type: {e}")
             raise
 
     def _extract_token_usage(

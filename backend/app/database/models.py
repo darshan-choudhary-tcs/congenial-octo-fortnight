@@ -87,6 +87,15 @@ class Document(Base):
     tags = Column(JSON)
     scope = Column(String, default="user")  # 'global' or 'user'
 
+    # LLM-generated metadata
+    auto_summary = Column(Text)  # AI-generated summary (200-300 words)
+    auto_keywords = Column(JSON)  # Extracted keywords list
+    auto_topics = Column(JSON)  # Classified topics list
+    content_type = Column(String)  # Document content type (technical, legal, etc.)
+    summarization_model = Column(String)  # Model used for metadata generation
+    summarization_tokens = Column(Integer)  # Tokens used for summarization
+    summarized_at = Column(DateTime)  # When metadata was generated
+
     # Processing status
     is_processed = Column(Boolean, default=False)
     processing_status = Column(String, default="pending")  # pending, processing, completed, failed

@@ -13,6 +13,158 @@ from app.rag.query_validator import query_validator
 class RAGRetriever:
     """Retrieval Augmented Generation with source attribution and grounding"""
 
+    async def extract_query_metadata(self, query: str, provider: str = "custom") -> Dict[str, Any]:
+        """
+        Extract keywords and topics from user query to enhance retrieval
+
+        Args:
+            query: User query
+            provider: LLM provider
+
+        Returns:
+            Dictionary with extracted keywords and topics
+        """
+        try:
+            # Extract keywords from query (limit to 3-5 for focused search)
+            keywords_result = await llm_service.extract_keywords(
+                text=query,
+                provider=provider,
+                max_keywords=5,
+                max_length=500  # Queries are short
+            )
+
+            # Extract topics from query (limit to 2-3 main topics)
+            topics_result = await llm_service.classify_topics(
+                text=query,
+                provider=provider,
+                max_topics=3,
+                max_length=500
+            )
+
+            return {
+                'keywords': keywords_result.get('keywords', []),
+                'topics': topics_result.get('topics', []),
+                'token_usage': {
+                    'prompt_tokens': (
+                        keywords_result.get('token_usage', {}).get('prompt_tokens', 0) +
+                        topics_result.get('token_usage', {}).get('prompt_tokens', 0)
+                    ),
+                    'completion_tokens': (
+                        keywords_result.get('token_usage', {}).get('completion_tokens', 0) +
+                        topics_result.get('token_usage', {}).get('completion_tokens', 0)
+                    ),
+                    'total_tokens': (
+                        keywords_result.get('token_usage', {}).get('total_tokens', 0) +
+                        topics_result.get('token_usage', {}).get('total_tokens', 0)
+                    )
+                }
+            }
+        except Exception as e:
+            logger.warning(f"Failed to extract query metadata: {e}. Proceeding without metadata filtering.")
+            return {'keywords': [], 'topics': [], 'token_usage': {}}
+
+    async def retrieve_with_metadata_filter(
+        self,
+        query: str,
+        provider: str = "custom",
+        n_results: int = None,
+        use_metadata_boost: bool = True,
+        user_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Retrieve documents with intelligent metadata filtering
+
+        Args:
+            query: User query
+            provider: LLM provider
+            n_results: Number of results
+            use_metadata_boost: If True, extract query metadata for filtering
+            user_id: User ID for user-specific collection search
+
+        Returns:
+            Dictionary with documents and metadata extraction info
+        """
+        try:
+            query_metadata = {'keywords': [], 'topics': [], 'token_usage': {}}
+
+            # Extract metadata from query for smarter filtering
+            if use_metadata_boost:
+                logger.info(f"[Metadata Boost] Extracting keywords/topics from query...")
+                query_metadata = await self.extract_query_metadata(query, provider)
+
+                if query_metadata['keywords'] or query_metadata['topics']:
+                    logger.info(
+                        f"[Metadata Boost] Query keywords: {query_metadata['keywords']}, "
+                        f"topics: {query_metadata['topics']}"
+                    )
+
+            # First attempt: Try with metadata filtering if we have query metadata
+            filtered_results = []
+            if use_metadata_boost and (query_metadata['keywords'] or query_metadata['topics']):
+                # Build filter to match documents with overlapping keywords/topics
+                # Note: ChromaDB $contains operator checks if the string contains the substring
+                filter_metadata = None
+
+                # Try filtering by keywords first (most specific)
+                if query_metadata['keywords']:
+                    keyword = query_metadata['keywords'][0]  # Use most relevant keyword
+                    filter_metadata = {'keywords': {'$contains': keyword}}
+
+                    logger.info(f"[Metadata Boost] Filtering by keyword: '{keyword}'")
+                    filtered_results = await self.retrieve_relevant_documents(
+                        query=query,
+                        provider=provider,
+                        n_results=n_results,
+                        filter_metadata=filter_metadata,
+                        user_id=user_id
+                    )
+
+                # If no results with keyword filter, try topic filter
+                if not filtered_results and query_metadata['topics']:
+                    topic = query_metadata['topics'][0]  # Use most relevant topic
+                    filter_metadata = {'topics': {'$contains': topic}}
+
+                    logger.info(f"[Metadata Boost] Filtering by topic: '{topic}'")
+                    filtered_results = await self.retrieve_relevant_documents(
+                        query=query,
+                        provider=provider,
+                        n_results=n_results,
+                        filter_metadata=filter_metadata,
+                        user_id=user_id
+                    )
+
+            # Fallback: Regular retrieval without metadata filter
+            if not filtered_results:
+                logger.info("[Metadata Boost] Using standard retrieval (no metadata filter)")
+                filtered_results = await self.retrieve_relevant_documents(
+                    query=query,
+                    provider=provider,
+                    n_results=n_results,
+                    filter_metadata=None,
+                    user_id=user_id
+                )
+
+            return {
+                'documents': filtered_results,
+                'query_metadata': query_metadata,
+                'metadata_boost_used': use_metadata_boost and bool(query_metadata['keywords'] or query_metadata['topics'])
+            }
+
+        except Exception as e:
+            logger.error(f"Metadata-enhanced retrieval failed: {e}")
+            # Fallback to standard retrieval
+            results = await self.retrieve_relevant_documents(
+                query=query,
+                provider=provider,
+                n_results=n_results,
+                user_id=user_id
+            )
+            return {
+                'documents': results,
+                'query_metadata': {'keywords': [], 'topics': []},
+                'metadata_boost_used': False
+            }
+
     async def retrieve_relevant_documents(
         self,
         query: str,

@@ -16,6 +16,7 @@ from app.auth.security import get_current_active_user, require_permission, requi
 from app.rag.document_processor import DocumentProcessor, TextChunker
 from app.rag.ocr_processor import ocr_processor
 from app.services.vector_store import vector_store_service
+from app.services.llm_service import LLMService
 from app.config import settings
 
 router = APIRouter()
@@ -31,6 +32,12 @@ class DocumentResponse(BaseModel):
     num_chunks: int
     uploaded_at: str
     scope: Optional[str] = "user"
+
+    # LLM-generated metadata
+    auto_summary: Optional[str] = None
+    auto_keywords: Optional[List[str]] = None
+    auto_topics: Optional[List[str]] = None
+    content_type: Optional[str] = None
 
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
@@ -90,6 +97,61 @@ async def upload_document(
             # Extract text
             text_content, metadata = DocumentProcessor.process_document(file_path)
 
+            # Generate LLM-based metadata
+            llm_service = LLMService()
+            logger.info(f"Generating metadata for document: {file.filename}")
+
+            total_summarization_tokens = 0
+
+            try:
+                # Generate summary
+                summary_result = await llm_service.generate_document_summary(
+                    text=text_content,
+                    provider=provider
+                )
+                document.auto_summary = summary_result["summary"]
+                total_summarization_tokens += summary_result["token_usage"].get("total_tokens", 0)
+                logger.info(f"Summary generated ({len(summary_result['summary'])} chars)")
+
+                # Extract keywords
+                keywords_result = await llm_service.extract_keywords(
+                    text=text_content,
+                    provider=provider,
+                    max_keywords=10
+                )
+                document.auto_keywords = keywords_result["keywords"]
+                total_summarization_tokens += keywords_result["token_usage"].get("total_tokens", 0)
+                logger.info(f"Keywords extracted: {keywords_result['keywords']}")
+
+                # Classify topics
+                topics_result = await llm_service.classify_topics(
+                    text=text_content,
+                    provider=provider,
+                    max_topics=5
+                )
+                document.auto_topics = topics_result["topics"]
+                total_summarization_tokens += topics_result["token_usage"].get("total_tokens", 0)
+                logger.info(f"Topics classified: {topics_result['topics']}")
+
+                # Determine content type
+                content_type_result = await llm_service.determine_content_type(
+                    text=text_content,
+                    provider=provider
+                )
+                document.content_type = content_type_result["content_type"]
+                total_summarization_tokens += content_type_result["token_usage"].get("total_tokens", 0)
+                logger.info(f"Content type determined: {content_type_result['content_type']}")
+
+                # Store metadata generation info
+                document.summarization_model = provider
+                document.summarization_tokens = total_summarization_tokens
+                from datetime import datetime
+                document.summarized_at = datetime.utcnow()
+
+            except Exception as meta_error:
+                logger.warning(f"Failed to generate LLM metadata: {meta_error}. Continuing with document processing.")
+                # Continue processing even if metadata generation fails
+
             # Chunk text
             chunks = TextChunker.chunk_text(text_content)
 
@@ -104,7 +166,11 @@ async def upload_document(
                     'category': category or 'general',
                     'user_id': str(current_user.id),
                     'uploaded_by_id': str(current_user.id),
-                    'scope': scope
+                    'scope': scope,
+                    # Add LLM-generated metadata for enhanced filtering (convert lists to strings)
+                    'keywords': ', '.join(document.auto_keywords) if document.auto_keywords else '',
+                    'topics': ', '.join(document.auto_topics) if document.auto_topics else '',
+                    'content_type': document.content_type if document.content_type else 'general'
                 }
                 for chunk in chunks
             ]
@@ -151,7 +217,11 @@ async def upload_document(
                 processing_status=document.processing_status,
                 num_chunks=document.num_chunks,
                 uploaded_at=document.uploaded_at.isoformat(),
-                scope=document.scope
+                scope=document.scope,
+                auto_summary=document.auto_summary,
+                auto_keywords=document.auto_keywords,
+                auto_topics=document.auto_topics,
+                content_type=document.content_type
             )
 
         except Exception as e:
@@ -214,7 +284,11 @@ async def list_documents(
             processing_status=doc.processing_status,
             num_chunks=doc.num_chunks,
             uploaded_at=doc.uploaded_at.isoformat(),
-            scope=doc.scope or "user"
+            scope=doc.scope or "user",
+            auto_summary=doc.auto_summary,
+            auto_keywords=doc.auto_keywords,
+            auto_topics=doc.auto_topics,
+            content_type=doc.content_type
         )
         for doc in documents
     ]
@@ -249,7 +323,14 @@ async def get_document(
         'num_tokens': document.num_tokens,
         'uploaded_at': document.uploaded_at.isoformat(),
         'uploaded_by': document.uploaded_by.username if document.uploaded_by else None,
-        'scope': document.scope or 'user'
+        'scope': document.scope or 'user',
+        'auto_summary': document.auto_summary,
+        'auto_keywords': document.auto_keywords,
+        'auto_topics': document.auto_topics,
+        'content_type': document.content_type,
+        'summarization_model': document.summarization_model,
+        'summarization_tokens': document.summarization_tokens,
+        'summarized_at': document.summarized_at.isoformat() if document.summarized_at else None
     }
 
 @router.delete("/{document_id}")
@@ -348,6 +429,61 @@ async def upload_global_document(
             # Extract text
             text_content, metadata = DocumentProcessor.process_document(file_path)
 
+            # Generate LLM-based metadata
+            llm_service = LLMService()
+            logger.info(f"Generating metadata for global document: {file.filename}")
+
+            total_summarization_tokens = 0
+
+            try:
+                # Generate summary
+                summary_result = await llm_service.generate_document_summary(
+                    text=text_content,
+                    provider=provider
+                )
+                document.auto_summary = summary_result["summary"]
+                total_summarization_tokens += summary_result["token_usage"].get("total_tokens", 0)
+                logger.info(f"Summary generated ({len(summary_result['summary'])} chars)")
+
+                # Extract keywords
+                keywords_result = await llm_service.extract_keywords(
+                    text=text_content,
+                    provider=provider,
+                    max_keywords=10
+                )
+                document.auto_keywords = keywords_result["keywords"]
+                total_summarization_tokens += keywords_result["token_usage"].get("total_tokens", 0)
+                logger.info(f"Keywords extracted: {keywords_result['keywords']}")
+
+                # Classify topics
+                topics_result = await llm_service.classify_topics(
+                    text=text_content,
+                    provider=provider,
+                    max_topics=5
+                )
+                document.auto_topics = topics_result["topics"]
+                total_summarization_tokens += topics_result["token_usage"].get("total_tokens", 0)
+                logger.info(f"Topics classified: {topics_result['topics']}")
+
+                # Determine content type
+                content_type_result = await llm_service.determine_content_type(
+                    text=text_content,
+                    provider=provider
+                )
+                document.content_type = content_type_result["content_type"]
+                total_summarization_tokens += content_type_result["token_usage"].get("total_tokens", 0)
+                logger.info(f"Content type determined: {content_type_result['content_type']}")
+
+                # Store metadata generation info
+                document.summarization_model = provider
+                document.summarization_tokens = total_summarization_tokens
+                from datetime import datetime
+                document.summarized_at = datetime.utcnow()
+
+            except Exception as meta_error:
+                logger.warning(f"Failed to generate LLM metadata: {meta_error}. Continuing with document processing.")
+                # Continue processing even if metadata generation fails
+
             # Chunk text
             chunks = TextChunker.chunk_text(text_content)
 
@@ -361,7 +497,11 @@ async def upload_global_document(
                     'file_type': document.file_type,
                     'category': category or 'general',
                     'uploaded_by_id': str(current_user.id),
-                    'scope': 'global'
+                    'scope': 'global',
+                    # Add LLM-generated metadata for enhanced filtering (convert lists to strings)
+                    'keywords': ', '.join(document.auto_keywords) if document.auto_keywords else '',
+                    'topics': ', '.join(document.auto_topics) if document.auto_topics else '',
+                    'content_type': document.content_type if document.content_type else 'general'
                 }
                 for chunk in chunks
             ]
@@ -408,7 +548,11 @@ async def upload_global_document(
                 processing_status=document.processing_status,
                 num_chunks=document.num_chunks,
                 uploaded_at=document.uploaded_at.isoformat(),
-                scope="global"
+                scope="global",
+                auto_summary=document.auto_summary,
+                auto_keywords=document.auto_keywords,
+                auto_topics=document.auto_topics,
+                content_type=document.content_type
             )
 
         except Exception as e:

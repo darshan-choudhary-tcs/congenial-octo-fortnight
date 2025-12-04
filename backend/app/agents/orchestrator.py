@@ -43,10 +43,13 @@ class AgentOrchestrator:
         try:
             logger.info(f"[Orchestrator] Starting RAG with agents for query: {query[:50]}...")
 
-            # Step 1: Research Agent - Retrieve documents
+            # Step 1: Research Agent - Retrieve documents with metadata boost
             research_agent = get_agent('research')
             research_result = await research_agent.execute(
-                input_data={'query': query},
+                input_data={
+                    'query': query,
+                    'use_metadata_boost': True  # Enable intelligent metadata filtering
+                },
                 provider=provider,
                 user_id=user_id
             )

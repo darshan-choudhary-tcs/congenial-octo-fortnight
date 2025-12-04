@@ -54,7 +54,7 @@ class ResearchAgent(BaseAgent):
         Execute research task
 
         Args:
-            input_data: Should contain 'query' and optional 'filters'
+            input_data: Should contain 'query' and optional 'filters', 'use_metadata_boost'
             provider: LLM provider
             user_id: User ID for multi-tenant search
 
@@ -66,16 +66,38 @@ class ResearchAgent(BaseAgent):
         try:
             query = input_data.get('query')
             filters = input_data.get('filters')
+            use_metadata_boost = input_data.get('use_metadata_boost', True)  # Default to True
 
-            logger.info(f"[{self.name}] Researching: {query} (provider: {provider})")
+            logger.info(f"[{self.name}] Researching: {query} (provider: {provider}, metadata_boost: {use_metadata_boost})")
 
-            # Retrieve relevant documents (searches both global and user collections)
-            retrieved_docs = await rag_retriever.retrieve_relevant_documents(
-                query=query,
-                provider=provider,
-                filter_metadata=filters,
-                user_id=user_id
-            )
+            # Retrieve relevant documents with optional metadata enhancement
+            if use_metadata_boost:
+                retrieval_result = await rag_retriever.retrieve_with_metadata_filter(
+                    query=query,
+                    provider=provider,
+                    use_metadata_boost=True,
+                    user_id=user_id
+                )
+                retrieved_docs = retrieval_result['documents']
+                query_metadata = retrieval_result.get('query_metadata', {})
+                metadata_boost_used = retrieval_result.get('metadata_boost_used', False)
+
+                if metadata_boost_used:
+                    logger.info(
+                        f"[{self.name}] Metadata boost applied - "
+                        f"Keywords: {query_metadata.get('keywords', [])}, "
+                        f"Topics: {query_metadata.get('topics', [])}"
+                    )
+            else:
+                # Standard retrieval without metadata boost
+                retrieved_docs = await rag_retriever.retrieve_relevant_documents(
+                    query=query,
+                    provider=provider,
+                    filter_metadata=filters,
+                    user_id=user_id
+                )
+                query_metadata = {}
+                metadata_boost_used = False
 
             if not retrieved_docs:
                 return {

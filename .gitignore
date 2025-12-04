@@ -30,6 +30,7 @@ htmlcov/
 .tox/
 .hypothesis/
 *.log
+token/
 
 # Virtual environments
 venv/
