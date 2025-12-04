@@ -1,5 +1,28 @@
 # RAG & Multi-Agent Frontend
 
+## 📚 Complete Documentation Available!
+
+**For comprehensive documentation with visual diagrams, architecture guides, and development tutorials, see:**
+
+👉 **[DOCUMENTATION.md](./DOCUMENTATION.md)** - Start here for complete frontend documentation
+
+### Quick Links
+
+| Documentation | Description |
+|---------------|-------------|
+| **[Main Documentation](./DOCUMENTATION.md)** | Complete overview, tech stack, quick start |
+| **[Authentication Guide](./docs/guides/AUTHENTICATION.md)** | Login flow, permissions, security |
+| **[API Integration](./docs/guides/API_INTEGRATION.md)** | HTTP client, error handling, streaming |
+| **[Theming & Styling](./docs/guides/THEMING_STYLING.md)** | MUI theme, dark mode, responsive design |
+| **[State Management](./docs/guides/STATE_MANAGEMENT.md)** | Context, hooks, data flow patterns |
+| **[Components & Utilities](./docs/guides/COMPONENTS_UTILITIES.md)** | Reusable components, helper functions |
+| **[Development Guide](./docs/guides/DEVELOPMENT_GUIDE.md)** | Add features, forms, API endpoints |
+| **[Architecture Patterns](./docs/ARCHITECTURE_PATTERNS.md)** | Design patterns, best practices |
+| **[Chat Feature](./docs/features/CHAT.md)** | Streaming, agents, document context |
+| **[Features Overview](./docs/features/FEATURES_OVERVIEW.md)** | All features documentation |
+
+---
+
 ## Overview
 This is the Next.js 14 frontend for the RAG & Multi-Agent AI system. It provides a modern, responsive UI for interacting with the AI system, managing documents, viewing explainability insights, and administering users.
 

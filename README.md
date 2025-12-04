@@ -185,6 +185,56 @@ npm run dev
 
 Frontend will be available at: http://localhost:3000
 
+## 📖 Frontend Documentation
+
+The frontend has **comprehensive documentation** with visual diagrams covering all aspects of the application. Perfect for developers who need to understand or extend the system.
+
+### 📚 Main Documentation
+Start here: **[Frontend Documentation](./frontend/DOCUMENTATION.md)**
+
+This serves as the entry point with:
+- Technology stack overview (Next.js, TypeScript, Material-UI)
+- Architecture diagrams
+- Complete project structure
+- Quick start guide
+- Navigation to all detailed guides
+
+### 🔑 Core Guides
+
+| Guide | Description |
+|-------|-------------|
+| **[Authentication](./frontend/docs/guides/AUTHENTICATION.md)** | JWT flows, RBAC system, route protection, permissions |
+| **[API Integration](./frontend/docs/guides/API_INTEGRATION.md)** | HTTP client, interceptors, SSE streaming, error handling |
+| **[State Management](./frontend/docs/guides/STATE_MANAGEMENT.md)** | Context providers, Zustand store, data flow patterns |
+| **[Theming & Styling](./frontend/docs/guides/THEMING_STYLING.md)** | MUI theme system, dark/light mode, responsive design |
+| **[Components & Utilities](./frontend/docs/guides/COMPONENTS_UTILITIES.md)** | Reusable components reference and utility functions |
+| **[Development Guide](./frontend/docs/guides/DEVELOPMENT_GUIDE.md)** | Step-by-step tutorials for extending the application |
+
+### 🎯 Feature Documentation
+
+| Feature | Description |
+|---------|-------------|
+| **[Chat Interface](./frontend/docs/features/CHAT.md)** | Deep dive into chat with streaming, agents, and citations |
+| **[Features Overview](./frontend/docs/features/FEATURES_OVERVIEW.md)** | Documents, OCR, Explainability, Admin Panel, Utilities |
+
+### 🏗️ Architecture
+
+| Resource | Description |
+|----------|-------------|
+| **[Architecture Patterns](./frontend/docs/ARCHITECTURE_PATTERNS.md)** | Design patterns, code organization, best practices |
+
+**Key Highlights:**
+- 📊 **50+ Visual Diagrams**: Mermaid.js diagrams for architecture, flows, and patterns
+- 💻 **100+ Code Examples**: Real-world examples from the codebase
+- 📝 **4,500+ Lines**: Comprehensive coverage of every aspect
+- 🎓 **Tutorial-Based**: Step-by-step guides for common tasks
+
+Perfect for:
+- ✅ First-time contributors understanding the codebase
+- ✅ Developers extending features or adding pages
+- ✅ Architects reviewing design patterns
+- ✅ Anyone needing to understand authentication, API integration, or state management
+
 ## 👤 Default Users
 
 The system comes with three pre-configured users:
