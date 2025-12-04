@@ -20,6 +20,7 @@ import {
   Paper
 } from '@mui/material'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import AnimatedStats from '@/components/AnimatedStats'
 import {
   Psychology as BrainIcon,
   Chat as MessageSquareIcon,
@@ -258,6 +259,9 @@ export default function LandingPage() {
           </Grid>
         </Container>
       </Box>
+
+      {/* Animated Statistics */}
+      <AnimatedStats />
 
       {/* Use Cases */}
       <Box sx={{ py: 10, px: 2, bgcolor: 'background.default' }}>

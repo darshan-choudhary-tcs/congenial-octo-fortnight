@@ -1,0 +1,76 @@
+{
+  "stats": [
+    {
+      "icon": "DocumentIcon",
+      "value": 1000000,
+      "suffix": "+",
+      "label": "Documents Processed",
+      "delay": 0,
+      "decimals": 0,
+      "iconColor": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+    },
+    {
+      "icon": "QueryIcon",
+      "value": 5000000,
+      "suffix": "+",
+      "label": "Queries Answered",
+      "delay": 150,
+      "decimals": 0,
+      "iconColor": "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
+    },
+    {
+      "icon": "PeopleIcon",
+      "value": 10000,
+      "suffix": "+",
+      "label": "Active Users",
+      "delay": 300,
+      "decimals": 0,
+      "iconColor": "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+    },
+    {
+      "icon": "ConfidenceIcon",
+      "value": 95,
+      "suffix": "%",
+      "label": "Confidence Score",
+      "delay": 450,
+      "decimals": 0,
+      "iconColor": "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"
+    },
+    {
+      "icon": "VectorIcon",
+      "value": 2000000,
+      "suffix": "+",
+      "label": "Vector Embeddings",
+      "delay": 600,
+      "decimals": 0,
+      "iconColor": "linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
+    },
+    {
+      "icon": "AgentIcon",
+      "value": 15000000,
+      "suffix": "+",
+      "label": "Agent Executions",
+      "delay": 750,
+      "decimals": 0,
+      "iconColor": "linear-gradient(135deg, #30cfd0 0%, #330867 100%)"
+    },
+    {
+      "icon": "SpeedIcon",
+      "value": 1.8,
+      "suffix": "s",
+      "label": "Avg Response Time",
+      "delay": 900,
+      "decimals": 1,
+      "iconColor": "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)"
+    },
+    {
+      "icon": "SettingsIcon",
+      "value": 2,
+      "suffix": " Integrated",
+      "label": "LLM Providers",
+      "delay": 1050,
+      "decimals": 0,
+      "iconColor": "linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)"
+    }
+  ]
+}
