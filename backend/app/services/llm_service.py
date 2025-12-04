@@ -12,6 +12,7 @@ from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import settings
+from app.prompts import get_prompt_library
 
 class LLMService:
     """Service for managing dual LLM providers (Custom API and Ollama)"""
@@ -210,18 +211,10 @@ class LLMService:
                 text = text[:max_length * 4]
                 logger.warning(f"Document text truncated to {max_length * 4} characters for summarization")
 
-            system_message = (
-                "You are an expert document analyst. Create concise, informative succinct summary. "
-                "Output ONLY the summary text, no preamble, no explanations, no meta-commentary. "
-                "Start directly with the content summary."
-            )
-
-            prompt = f"""Summarize the following document in 200-300 words. Include main points and key information. Write in clear, professional language. Output ONLY the summary, nothing else.
-
-Document:
-{text}
-
-Summary:"""
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+            system_message = prompt_lib.get_system_prompt("document_analyst")
+            prompt = prompt_lib.get_prompt("document_summarization", text=text)
 
             result = await self.generate_response(
                 prompt=prompt,
@@ -279,19 +272,10 @@ Summary:"""
             if len(text) > max_length * 4:
                 text = text[:max_length * 4]
 
-            system_message = (
-                "You are an expert at analyzing documents and extracting key terms. "
-                "Extract the most important and relevant keywords that represent the core topics "
-                "and concepts in the document. Return ONLY a JSON array of keywords, nothing else."
-            )
-
-            prompt = f"""Extract {max_keywords} most important keywords from this document.
-Return them as a JSON array like: ["keyword1", "keyword2", "keyword3"]
-
-Document:
-{text}
-
-Keywords (JSON array only):"""
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+            system_message = prompt_lib.get_system_prompt("keyword_extractor")
+            prompt = prompt_lib.get_prompt("keyword_extraction", max_keywords=max_keywords, text=text)
 
             result = await self.generate_response(
                 prompt=prompt,
@@ -355,18 +339,10 @@ Keywords (JSON array only):"""
             if len(text) > max_length * 4:
                 text = text[:max_length * 4]
 
-            system_message = (
-                "You are an expert document classifier. Analyze the document and identify "
-                "the main topics or themes it covers. Return ONLY a JSON array of topics, nothing else."
-            )
-
-            prompt = f"""Identify the {max_topics} main topics or themes in this document.
-Return them as a JSON array like: ["topic1", "topic2", "topic3"]
-
-Document:
-{text}
-
-Topics (JSON array only):"""
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+            system_message = prompt_lib.get_system_prompt("document_classifier")
+            prompt = prompt_lib.get_prompt("topic_classification", max_topics=max_topics, text=text)
 
             result = await self.generate_response(
                 prompt=prompt,
@@ -427,18 +403,10 @@ Topics (JSON array only):"""
             if len(text) > max_length * 4:
                 text = text[:max_length * 4]
 
-            system_message = (
-                "You are a document classifier. Classify the document into one of these categories: "
-                "technical, legal, financial, academic, business, medical, general. "
-                "Return ONLY the category name, nothing else."
-            )
-
-            prompt = f"""Classify this document into one category: technical, legal, financial, academic, business, medical, or general.
-
-Document:
-{text}
-
-Category:"""
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+            system_message = prompt_lib.get_system_prompt("content_type_classifier")
+            prompt = prompt_lib.get_prompt("content_type_determination", text=text)
 
             result = await self.generate_response(
                 prompt=prompt,

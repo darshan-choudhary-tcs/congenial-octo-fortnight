@@ -15,6 +15,7 @@ from app.database.models import User, Conversation, Message, AgentLog, TokenUsag
 from app.auth.security import get_current_active_user, require_permission
 from app.agents.orchestrator import orchestrator
 from app.config import settings
+from app.prompts import get_prompt_library
 
 router = APIRouter()
 
@@ -665,25 +666,26 @@ async def send_message_direct(
             conversation_history.append(f"{msg.role.capitalize()}: {msg.content}")
 
         # Build prompt with context
+        prompt_lib = get_prompt_library()
         if conversation_history:
-            prompt = f"""Previous conversation context:
-{chr(10).join(conversation_history[-5:])}
-
-Current question: {chat_request.message}
-
-Please provide a helpful, accurate response based on the question."""
+            prompt = prompt_lib.get_prompt(
+                "direct_llm_with_history",
+                conversation_history=chr(10).join(conversation_history[-5:]),
+                message=chat_request.message
+            )
         else:
-            prompt = chat_request.message
+            prompt = prompt_lib.get_prompt("direct_llm_simple", message=chat_request.message)
 
         # Record start time
         start_time = time.time()
 
         # Call LLM directly (bypassing RAG)
         logger.info(f"Direct LLM query for user {current_user.username} (bypassing RAG)")
+        system_message = prompt_lib.get_system_prompt("helpful_assistant")
         llm_result = await llm_service.generate_response(
             prompt=prompt,
             provider=provider,
-            system_message="You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user questions."
+            system_message=system_message
         )
 
         # Extract response and token usage

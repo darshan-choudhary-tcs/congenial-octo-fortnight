@@ -9,6 +9,7 @@ from app.services.llm_service import llm_service
 from app.services.vector_store import vector_store_service
 from app.config import settings
 from app.rag.query_validator import query_validator
+from app.prompts import get_prompt_library
 
 class RAGRetriever:
     """Retrieval Augmented Generation with source attribution and grounding"""
@@ -278,36 +279,37 @@ class RAGRetriever:
 
             context = "\n".join(context_parts)
 
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+
             # Build system message based on explainability level
-            system_messages = {
-                "basic": "You are a helpful AI assistant. Answer the user's question based on the provided context. Be concise and accurate.",
-                "detailed": "You are a helpful AI assistant. Answer the user's question based on the provided context. Include reasoning and cite sources using [Source N] format.",
-                "debug": "You are a helpful AI assistant. Answer the user's question based on the provided context. Provide detailed reasoning, cite all sources using [Source N] format, note any assumptions, and highlight potential limitations or uncertainties."
+            system_prompt_map = {
+                "basic": "rag_assistant_basic",
+                "detailed": "rag_assistant_detailed",
+                "debug": "rag_assistant_debug"
             }
 
-            system_message = system_messages.get(explainability_level, system_messages["detailed"])
+            system_prompt_name = system_prompt_map.get(explainability_level, "rag_assistant_detailed")
+            system_message = prompt_lib.get_system_prompt(system_prompt_name)
 
             # Build prompt
             if include_sources:
-                prompt = f"""Context Information:
-{context}
+                reasoning_detail = ' in detail' if explainability_level in ['detailed', 'debug'] else ''
+                assumptions_note = '5. Note any assumptions or uncertainties' if explainability_level == 'debug' else ''
 
-User Question: {query}
-
-Instructions:
-1. Answer the question using ONLY the information from the context provided above
-2. If the context doesn't contain enough information, acknowledge this limitation
-3. Cite your sources using the [Source N] format
-4. Explain your reasoning{' in detail' if explainability_level in ['detailed', 'debug'] else ''}
-{f'5. Note any assumptions or uncertainties' if explainability_level == 'debug' else ''}
-
-Answer:"""
+                prompt = prompt_lib.get_prompt(
+                    "rag_generation_with_sources",
+                    context=context,
+                    query=query,
+                    reasoning_detail=reasoning_detail,
+                    assumptions_note=assumptions_note
+                )
             else:
-                prompt = f"""Context: {context}
-
-Question: {query}
-
-Answer:"""
+                prompt = prompt_lib.get_prompt(
+                    "rag_generation_simple",
+                    context=context,
+                    query=query
+                )
 
             # Generate response
             start_time = datetime.utcnow()
@@ -577,29 +579,19 @@ Answer:"""
         try:
             sources_text = "\n\n".join([f"Source {i+1}: {s['content']}" for i, s in enumerate(sources)])
 
-            verification_prompt = f"""You are a fact-checking AI. Your task is to verify if the following response is grounded in the provided sources.
-
-Sources:
-{sources_text}
-
-Response to Verify:
-{response}
-
-Analyze:
-1. Which claims in the response are supported by the sources?
-2. Are there any claims that are NOT supported by the sources?
-3. Overall grounding score (0.0 to 1.0)
-
-Provide your analysis in this format:
-Supported Claims: [list]
-Unsupported Claims: [list]
-Grounding Score: [0.0-1.0]
-Explanation: [brief explanation]"""
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+            verification_prompt = prompt_lib.get_prompt(
+                "grounding_verification",
+                sources_text=sources_text,
+                response=response
+            )
+            system_message = prompt_lib.get_system_prompt("fact_checker")
 
             verification_data = await llm_service.generate_response(
                 prompt=verification_prompt,
                 provider=provider,
-                system_message="You are a precise fact-checking assistant."
+                system_message=system_message
             )
             verification_result = verification_data["content"]
             token_usage = verification_data["token_usage"]

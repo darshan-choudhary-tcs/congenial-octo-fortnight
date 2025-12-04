@@ -8,6 +8,7 @@ from loguru import logger
 
 from app.services.llm_service import llm_service
 from app.rag.retriever import rag_retriever
+from app.prompts import get_prompt_library
 
 class BaseAgent(ABC):
     """Base class for all agents"""
@@ -110,23 +111,18 @@ class ResearchAgent(BaseAgent):
                 }
 
             # Analyze retrieved documents
-            analysis_prompt = f"""You are a research analyst. Analyze the following documents retrieved for the query: "{query}"
-
-Documents:
-{self._format_documents(retrieved_docs)}
-
-Provide:
-1. Key findings (bullet points)
-2. Relevance assessment for each document
-3. Overall confidence in the retrieved information
-4. Any gaps or limitations
-
-Analysis:"""
+            prompt_lib = get_prompt_library()
+            analysis_prompt = prompt_lib.get_prompt(
+                "research_analysis",
+                query=query,
+                documents=self._format_documents(retrieved_docs)
+            )
+            system_message = prompt_lib.get_system_prompt("research_analyst")
 
             analysis = await llm_service.invoke_llm(
                 prompt=analysis_prompt,
                 provider=provider,
-                system_message="You are a thorough research analyst focused on accuracy and relevance."
+                system_message=system_message
             )
 
             # Calculate overall confidence
@@ -203,49 +199,22 @@ class AnalyzerAgent(BaseAgent):
 
             logger.info(f"[{self.name}] Analyzing data: {analysis_type}")
 
-            analysis_prompts = {
-                'general': f"""Analyze the following information and provide insights:
-
-Data: {self._format_data(data)}
-
-Provide:
-1. Key insights and patterns
-2. Important relationships or connections
-3. Recommendations or conclusions
-
-Analysis:""",
-
-                'comparative': f"""Compare and contrast the following information:
-
-Data: {self._format_data(data)}
-
-Provide:
-1. Similarities
-2. Differences
-3. Strengths and weaknesses
-4. Overall comparison summary
-
-Analysis:""",
-
-                'trend': f"""Identify trends and patterns in the following information:
-
-Data: {self._format_data(data)}
-
-Provide:
-1. Major trends identified
-2. Supporting evidence for each trend
-3. Potential implications
-4. Confidence in trend identification
-
-Analysis:"""
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+            prompt_map = {
+                'general': 'general_analysis',
+                'comparative': 'comparative_analysis',
+                'trend': 'trend_analysis'
             }
 
-            prompt = analysis_prompts.get(analysis_type, analysis_prompts['general'])
+            prompt_name = prompt_map.get(analysis_type, 'general_analysis')
+            prompt = prompt_lib.get_prompt(prompt_name, data=self._format_data(data))
+            system_message = prompt_lib.get_system_prompt("data_analyst")
 
             analysis_data = await llm_service.generate_response(
                 prompt=prompt,
                 provider=provider,
-                system_message="You are an expert data analyst skilled at finding patterns and generating actionable insights."
+                system_message=system_message
             )
             analysis = analysis_data["content"]
             token_usage = analysis_data["token_usage"]
@@ -319,54 +288,36 @@ class ExplainabilityAgent(BaseAgent):
 
             logger.info(f"[{self.name}] Generating explanation (level: {explainability_level})")
 
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+
             if explainability_level == 'basic':
-                explanation_prompt = f"""Provide a simple explanation of how this response was generated:
-
-Response: {response}
-
-Number of sources used: {len(sources)}
-
-Explain in 2-3 sentences why this response is reliable."""
-
+                explanation_prompt = prompt_lib.get_prompt(
+                    "explanation_basic",
+                    response=response,
+                    source_count=len(sources)
+                )
             elif explainability_level == 'detailed':
-                explanation_prompt = f"""Provide a detailed explanation of the AI decision process:
-
-Response: {response}
-
-Sources Used:
-{self._format_sources(sources)}
-
-Process: {process}
-
-Explain:
-1. What sources were used and why
-2. How the information was synthesized
-3. Reasoning
-4. Any limitations or uncertainties"""
-
+                explanation_prompt = prompt_lib.get_prompt(
+                    "explanation_detailed",
+                    response=response,
+                    sources=self._format_sources(sources),
+                    process=process
+                )
             else:  # debug
-                explanation_prompt = f"""Provide a comprehensive technical explanation of the AI decision process:
+                explanation_prompt = prompt_lib.get_prompt(
+                    "explanation_debug",
+                    response=response,
+                    sources_detailed=self._format_sources_detailed(sources),
+                    process=process
+                )
 
-Response: {response}
-
-Sources Used (with similarity scores):
-{self._format_sources_detailed(sources)}
-
-Process: {process}
-
-Provide:
-1. Detailed source selection rationale
-2. Step-by-step reasoning process
-3. Confidence calculations and factors
-4. Potential biases or limitations
-5. Alternative interpretations considered
-6. Grounding verification results
-7. Recommendations for improving confidence"""
+            system_message = prompt_lib.get_system_prompt("transparency_expert")
 
             explanation_data = await llm_service.generate_response(
                 prompt=explanation_prompt,
                 provider=provider,
-                system_message="You are an AI transparency expert. Provide clear, honest explanations of AI decision-making processes."
+                system_message=system_message
             )
             explanation = explanation_data["content"]
             token_usage = explanation_data["token_usage"]

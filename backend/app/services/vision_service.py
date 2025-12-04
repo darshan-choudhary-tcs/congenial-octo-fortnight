@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, List
 from PIL import Image
 from io import BytesIO
 from app.config import settings
+from app.prompts import get_prompt_library
 
 # Disable SSL warnings for internal API
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -244,17 +245,8 @@ class VisionService:
 
             # Default OCR prompt
             if not custom_prompt:
-                custom_prompt = """Extract ALL text from this image exactly as it appears.
-
-Instructions:
-- Preserve the original layout and formatting as much as possible
-- Include all visible text, numbers, symbols, and punctuation
-- Maintain line breaks and spacing
-- If the text is structured (tables, lists, forms), preserve that structure
-- If any text is unclear or difficult to read, note it with [unclear]
-- Do not add any commentary or interpretation, only the extracted text
-
-Extracted text:"""
+                prompt_lib = get_prompt_library()
+                custom_prompt = prompt_lib.get_prompt("ocr_extraction")
 
             # Call appropriate provider
             if provider == "custom":
@@ -276,7 +268,7 @@ Extracted text:"""
         image_base64: Optional[str] = None,
         pil_image: Optional[Image.Image] = None,
         provider: str = "custom",
-        analysis_prompt: str = "Describe what you see in this image in detail."
+        analysis_prompt: str = None
     ) -> Dict[str, Any]:
         """
         Analyze image content using vision model
@@ -301,6 +293,11 @@ Extracted text:"""
                 encoded_image = self.encode_image_to_base64(image_path)
             else:
                 raise ValueError("Must provide either image_path, image_base64, or pil_image")
+
+            # Default analysis prompt
+            if not analysis_prompt:
+                prompt_lib = get_prompt_library()
+                analysis_prompt = prompt_lib.get_prompt("image_analysis", analysis_prompt="Describe what you see in this image in detail.")
 
             # Call appropriate provider
             if provider == "custom":
