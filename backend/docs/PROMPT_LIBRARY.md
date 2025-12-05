@@ -136,6 +136,9 @@ Define the AI's role and behavior. No variables needed.
 | `rag_assistant_basic` | Basic RAG responses | system |
 | `rag_assistant_detailed` | Detailed RAG with citations | system |
 | `rag_assistant_debug` | Debug-level RAG with full transparency | system |
+| `council_analytical` | Analytical council voter | system |
+| `council_creative` | Creative council voter | system |
+| `council_critical` | Critical council voter | system |
 
 ### 2. Agent Prompts
 
@@ -150,6 +153,7 @@ Multi-agent system prompts for research, analysis, and explainability.
 | `explanation_basic` | `response`, `source_count` | Simple explanation of AI reasoning |
 | `explanation_detailed` | `response`, `sources`, `process` | Detailed explanation with source usage |
 | `explanation_debug` | `response`, `sources_detailed`, `process` | Comprehensive technical explanation |
+| `council_evaluation` | `query`, `context_section`, `documents_section` | Council agent structured evaluation |
 
 ### 3. RAG Prompts
 

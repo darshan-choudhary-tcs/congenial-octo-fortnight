@@ -470,10 +470,10 @@ class CouncilAgent(BaseAgent):
     Council agents evaluate queries/responses and provide votes with confidence and reasoning
     """
 
-    def __init__(self, name: str, agent_type: str, description: str, 
-                 system_prompt: str, temperature: float = 0.7, vote_weight: float = 1.0):
+    def __init__(self, name: str, agent_type: str, description: str,
+                 system_prompt_name: str, temperature: float = 0.7, vote_weight: float = 1.0):
         super().__init__(name, agent_type, description)
-        self.system_prompt = system_prompt
+        self.system_prompt_name = system_prompt_name
         self.temperature = temperature
         self.vote_weight = vote_weight
 
@@ -497,12 +497,16 @@ class CouncilAgent(BaseAgent):
 
             logger.info(f"[{self.name}] Evaluating query: {query[:100]}... (provider: {provider})")
 
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+
             # Build evaluation prompt
-            prompt = self._build_evaluation_prompt(query, context, retrieved_docs)
+            prompt = self._build_evaluation_prompt(query, context, retrieved_docs, prompt_lib)
+            system_message = prompt_lib.get_system_prompt(self.system_prompt_name)
 
             # Generate response with specific temperature
             llm = llm_service.get_llm(provider)
-            
+
             # Set temperature for this specific call
             original_temp = llm.temperature if hasattr(llm, 'temperature') else 0.7
             if hasattr(llm, 'temperature'):
@@ -511,7 +515,7 @@ class CouncilAgent(BaseAgent):
             response_data = await llm_service.generate_response(
                 prompt=prompt,
                 provider=provider,
-                system_message=self.system_prompt
+                system_message=system_message
             )
 
             # Restore original temperature
@@ -562,38 +566,29 @@ class CouncilAgent(BaseAgent):
                 'execution_time': (datetime.utcnow() - start_time).total_seconds()
             }
 
-    def _build_evaluation_prompt(self, query: str, context: str, retrieved_docs: List[Dict]) -> str:
-        """Build prompt for evaluation"""
-        prompt_parts = [f"Query: {query}"]
-
+    def _build_evaluation_prompt(self, query: str, context: str, retrieved_docs: List[Dict], prompt_lib) -> str:
+        """Build prompt for evaluation using prompt library"""
+        # Build context section
+        context_section = ""
         if context:
-            prompt_parts.append(f"\nAdditional Context:\n{context}")
+            context_section = f"\nAdditional Context:\n{context}"
 
+        # Build documents section
+        documents_section = ""
         if retrieved_docs:
             docs_text = "\n\n".join([
                 f"Document {i+1} (Similarity: {doc.get('similarity', 0):.2f}):\n{doc.get('content', '')[:500]}"
                 for i, doc in enumerate(retrieved_docs[:3])
             ])
-            prompt_parts.append(f"\nRetrieved Documents:\n{docs_text}")
+            documents_section = f"\nRetrieved Documents:\n{docs_text}"
 
-        prompt_parts.append("""
-
-Provide your response in the following structure:
-
-RESPONSE:
-[Your detailed answer to the query]
-
-REASONING:
-[Your step-by-step reasoning process]
-
-EVIDENCE:
-[Key evidence points from the documents, if any]
-
-CONFIDENCE:
-[Your confidence level: high/medium/low and why]
-""")
-
-        return "\n".join(prompt_parts)
+        # Get prompt from library
+        return prompt_lib.get_prompt(
+            "council_evaluation",
+            query=query,
+            context_section=context_section,
+            documents_section=documents_section
+        )
 
     def _parse_response(self, response: str) -> Dict[str, Any]:
         """Parse structured response from LLM"""
@@ -631,13 +626,13 @@ CONFIDENCE:
         # Clean up sections
         sections['response'] = sections['response'].strip() or response
         sections['reasoning'] = sections['reasoning'].strip()
-        
+
         return sections
 
     def _calculate_confidence(self, parsed: Dict[str, Any], retrieved_docs: List[Dict]) -> float:
         """Calculate numerical confidence score"""
         confidence_text = parsed.get('confidence_text', '').lower()
-        
+
         # Base confidence from text
         if 'high' in confidence_text:
             base_confidence = 0.85
@@ -672,17 +667,7 @@ class AnalyticalVoter(CouncilAgent):
             name="AnalyticalVoter",
             agent_type="council_analytical",
             description="Analytical agent focused on logical reasoning and factual accuracy",
-            system_prompt="""You are an analytical expert with a focus on logical reasoning and factual accuracy.
-
-Your approach:
-- Prioritize facts and verifiable information
-- Use systematic, step-by-step reasoning
-- Identify logical connections and patterns
-- Question assumptions and look for evidence
-- Maintain objectivity and precision
-- Point out gaps in information or reasoning
-
-Evaluate queries with a critical, analytical mindset.""",
+            system_prompt_name="council_analytical",
             temperature=0.3,  # Low temperature for consistency
             vote_weight=1.0
         )
@@ -699,17 +684,7 @@ class CreativeVoter(CouncilAgent):
             name="CreativeVoter",
             agent_type="council_creative",
             description="Creative agent focused on innovative thinking and broader perspectives",
-            system_prompt="""You are a creative thinker who approaches problems from multiple angles.
-
-Your approach:
-- Consider unconventional perspectives and connections
-- Think broadly and holistically about implications
-- Explore alternative interpretations
-- Balance innovation with practicality
-- Synthesize information in novel ways
-- Consider context and nuances
-
-Evaluate queries with an open, creative mindset while remaining grounded in the available information.""",
+            system_prompt_name="council_creative",
             temperature=0.9,  # Higher temperature for creativity
             vote_weight=1.0
         )
@@ -726,18 +701,7 @@ class CriticalVoter(CouncilAgent):
             name="CriticalVoter",
             agent_type="council_critical",
             description="Critical agent focused on identifying weaknesses and ensuring quality",
-            system_prompt="""You are a critical evaluator focused on quality assurance and identifying potential issues.
-
-Your approach:
-- Identify weaknesses, gaps, and limitations
-- Look for potential biases or unsupported claims
-- Verify consistency and coherence
-- Challenge assumptions critically
-- Assess reliability of sources and information
-- Consider potential risks or downsides
-- Ensure responses are balanced and fair
-
-Evaluate queries with a skeptical, quality-focused mindset.""",
+            system_prompt_name="council_critical",
             temperature=0.5,  # Medium temperature for balanced criticism
             vote_weight=1.0
         )

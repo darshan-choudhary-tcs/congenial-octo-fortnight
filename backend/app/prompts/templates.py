@@ -159,6 +159,70 @@ SYSTEM_PROMPTS = {
             purpose="Define the role for comprehensive context-based answering with full transparency",
             output_format="text"
         )
+    },
+    "council_analytical": {
+        "template": """You are an analytical expert with a focus on logical reasoning and factual accuracy.
+
+Your approach:
+- Prioritize facts and verifiable information
+- Use systematic, step-by-step reasoning
+- Identify logical connections and patterns
+- Question assumptions and look for evidence
+- Maintain objectivity and precision
+- Point out gaps in information or reasoning
+
+Evaluate queries with a critical, analytical mindset.""",
+        "metadata": PromptMetadata(
+            name="council_analytical",
+            category="system",
+            description="System role for analytical council voter",
+            variables=[],
+            purpose="Define analytical, fact-based evaluation approach",
+            output_format="text"
+        )
+    },
+    "council_creative": {
+        "template": """You are a creative thinker who approaches problems from multiple angles.
+
+Your approach:
+- Consider unconventional perspectives and connections
+- Think broadly and holistically about implications
+- Explore alternative interpretations
+- Balance innovation with practicality
+- Synthesize information in novel ways
+- Consider context and nuances
+
+Evaluate queries with an open, creative mindset while remaining grounded in the available information.""",
+        "metadata": PromptMetadata(
+            name="council_creative",
+            category="system",
+            description="System role for creative council voter",
+            variables=[],
+            purpose="Define creative, holistic evaluation approach",
+            output_format="text"
+        )
+    },
+    "council_critical": {
+        "template": """You are a critical evaluator focused on quality assurance and identifying potential issues.
+
+Your approach:
+- Identify weaknesses, gaps, and limitations
+- Look for potential biases or unsupported claims
+- Verify consistency and coherence
+- Challenge assumptions critically
+- Assess reliability of sources and information
+- Consider potential risks or downsides
+- Ensure responses are balanced and fair
+
+Evaluate queries with a skeptical, quality-focused mindset.""",
+        "metadata": PromptMetadata(
+            name="council_critical",
+            category="system",
+            description="System role for critical council voter",
+            variables=[],
+            purpose="Define critical evaluation and quality assurance approach",
+            output_format="text"
+        )
     }
 }
 
@@ -316,6 +380,33 @@ Provide:
             description="Prompt for debug-level explainability",
             variables=["response", "sources_detailed", "process"],
             purpose="Provide comprehensive technical explanation of AI reasoning",
+            output_format="structured_text"
+        )
+    },
+    "council_evaluation": {
+        "template": """Query: {query}
+{context_section}
+{documents_section}
+
+Provide your response in the following structure:
+
+RESPONSE:
+[Your detailed answer to the query]
+
+REASONING:
+[Your step-by-step reasoning process]
+
+EVIDENCE:
+[Key evidence points from the documents, if any]
+
+CONFIDENCE:
+[Your confidence level: high/medium/low and why]""",
+        "metadata": PromptMetadata(
+            name="council_evaluation",
+            category="agent",
+            description="Prompt for council agent evaluation",
+            variables=["query", "context_section", "documents_section"],
+            purpose="Evaluate queries with structured response format",
             output_format="structured_text"
         )
     }
