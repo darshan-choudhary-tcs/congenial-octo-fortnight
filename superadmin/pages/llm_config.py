@@ -115,11 +115,12 @@ def show_llm_config_page():
         return
 
     # Create tabs for different configuration sections
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "🔌 Custom API Provider",
-        "🏠 Ollama Provider",
-        "🔍 RAG Configuration",
-        "🤖 Agent Settings"
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "Custom API Provider",
+        "Ollama Provider",
+        "RAG Configuration",
+        "Agent Settings",
+        "Backend Logs"
     ])
 
     # === CUSTOM API PROVIDER ===
@@ -210,33 +211,6 @@ def show_llm_config_page():
                             st.error("❌ Failed to restart backend. Please restart manually.")
                     else:
                         st.error("❌ Failed to save configuration")
-
-        # Backend Logs Section
-        st.markdown("---")
-        st.subheader("📋 Backend Logs")
-
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            log_lines = st.slider("Number of log lines to display", min_value=10, max_value=200, value=50, step=10)
-        with col2:
-            if st.button("🔄 Refresh Logs", use_container_width=True):
-                st.rerun()
-
-        try:
-            log_file_path = Path(__file__).parent.parent.parent / "backend.log"
-            if log_file_path.exists():
-                with open(log_file_path, 'r') as f:
-                    # Read last N lines
-                    lines = f.readlines()
-                    last_lines = lines[-log_lines:] if len(lines) > log_lines else lines
-                    log_content = ''.join(last_lines)
-
-                st.code(log_content, language="log")
-                st.caption(f"Showing last {len(last_lines)} lines from {log_file_path}")
-            else:
-                st.warning("⚠️ Backend log file not found. Start the backend to generate logs.")
-        except Exception as e:
-            st.error(f"Failed to read backend logs: {str(e)}")
 
         # Display current settings
         with st.expander("📋 Current Settings", expanded=False):
@@ -509,6 +483,63 @@ def show_llm_config_page():
             with col2:
                 st.markdown("**Explainability Config:**")
                 st.json(config.get('explainability', {}))
+
+    # === BACKEND LOGS TAB ===
+    with tab5:
+        st.subheader("📋 Backend Logs")
+        st.markdown("Monitor backend server logs in real-time")
+
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            log_lines = st.slider("Number of log lines to display", min_value=10, max_value=500, value=100, step=10)
+        with col2:
+            auto_refresh = st.checkbox("Auto-refresh", value=False)
+        with col3:
+            if st.button("🔄 Refresh Now", use_container_width=True):
+                st.rerun()
+
+        if auto_refresh:
+            st.info("⏱️ Auto-refresh enabled. Logs will update automatically.")
+            import time
+            time.sleep(2)
+            st.rerun()
+
+        try:
+            log_file_path = Path(__file__).parent.parent.parent / "backend.log"
+            if log_file_path.exists():
+                with open(log_file_path, 'r') as f:
+                    # Read last N lines
+                    lines = f.readlines()
+                    last_lines = lines[-log_lines:] if len(lines) > log_lines else lines
+                    log_content = ''.join(last_lines)
+
+                # Display logs in code block
+                st.code(log_content, language="log")
+
+                # Log file info
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.caption(f"📄 File: {log_file_path.name}")
+                with col2:
+                    file_size = log_file_path.stat().st_size
+                    size_mb = file_size / (1024 * 1024)
+                    st.caption(f"💾 Size: {size_mb:.2f} MB")
+                with col3:
+                    st.caption(f"📊 Showing: {len(last_lines)}/{len(lines)} lines")
+
+                # Download logs button
+                st.download_button(
+                    label="⬇️ Download Full Log File",
+                    data=open(log_file_path, 'r').read(),
+                    file_name="backend.log",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+            else:
+                st.warning("⚠️ Backend log file not found. Start the backend to generate logs.")
+                st.info("Expected location: `backend.log` in project root")
+        except Exception as e:
+            st.error(f"Failed to read backend logs: {str(e)}")
 
     # === FOOTER ===
     st.markdown("---")
