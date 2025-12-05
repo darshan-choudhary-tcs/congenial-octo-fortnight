@@ -220,6 +220,11 @@ class AgentLog(Base):
     reasoning = Column(Text)
     confidence = Column(Float)
 
+    # Council of Agents voting data
+    vote_data = Column(JSON)  # Full vote details: {response, reasoning, evidence, vote_weight, temperature}
+    vote_weight = Column(Float)  # Weight of this agent's vote
+    consensus_score = Column(Float)  # Consensus level among all agents
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -658,6 +658,409 @@ class AgentOrchestrator:
                 }
             }
 
+    async def execute_council_voting(
+        self,
+        query: str,
+        provider: str = "ollama",
+        user_id: Optional[int] = None,
+        voting_strategy: str = "weighted_confidence",
+        include_synthesis: bool = True,
+        debate_rounds: int = 1,
+        document_filter: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute council of agents voting using direct LLM calls (no RAG)
+
+        Args:
+            query: User query
+            provider: LLM provider (ollama, custom, openai, deepseek, llama)
+            user_id: User ID for tracking (not used for RAG)
+            voting_strategy: Strategy for aggregating votes (weighted_confidence, highest_confidence, majority, synthesis)
+            include_synthesis: Whether to synthesize all responses into final answer
+            debate_rounds: Number of debate rounds (1 = no debate, >1 = iterative refinement)
+            document_filter: Optional filter (not used - council uses direct LLM)
+
+        Returns:
+            Council result with aggregated response, individual votes, and consensus metrics
+        """
+        start_time = datetime.utcnow()
+        agent_logs = []
+
+        try:
+            from app.agents.base_agents import get_council_agents
+            from app.services.llm_service import llm_service
+            
+            logger.info(f"[Orchestrator] Starting council voting for query: {query[:50]}... (strategy: {voting_strategy})")
+
+            # Execute council agents in parallel with direct LLM calls (no RAG)
+            council_agents = get_council_agents()
+            council_input = {
+                'query': query,
+                'retrieved_docs': [],  # No RAG - direct LLM calls only
+                'context': ''  # No document context
+            }
+
+            # Execute all council agents concurrently
+            logger.info(f"[Orchestrator] Executing {len(council_agents)} council agents in parallel")
+            vote_results = await asyncio.gather(*[
+                agent.execute(council_input, provider)
+                for agent in council_agents
+            ], return_exceptions=True)
+
+            # Process vote results and handle any failures
+            valid_votes = []
+            failed_votes = []
+            
+            for i, result in enumerate(vote_results):
+                agent_name = council_agents[i].name
+                
+                if isinstance(result, Exception):
+                    logger.error(f"[Orchestrator] {agent_name} failed: {result}")
+                    failed_votes.append({
+                        'agent': agent_name,
+                        'error': str(result)
+                    })
+                elif result.get('status') == 'completed':
+                    valid_votes.append(result)
+                    agent_logs.append({
+                        'agent': agent_name,
+                        'action': 'council_vote',
+                        'result': {
+                            'confidence': result['vote']['confidence'],
+                            'vote_weight': result['vote']['vote_weight']
+                        },
+                        'timestamp': datetime.utcnow().isoformat()
+                    })
+                else:
+                    failed_votes.append({
+                        'agent': agent_name,
+                        'error': result.get('error', 'Unknown error')
+                    })
+
+            if not valid_votes:
+                raise ValueError("All council agents failed to provide votes")
+
+            logger.info(f"[Orchestrator] Received {len(valid_votes)} valid votes from council")
+
+            # Aggregate votes based on strategy
+            aggregation_result = await self._aggregate_council_votes(
+                votes=valid_votes,
+                strategy=voting_strategy,
+                query=query,
+                provider=provider,
+                include_synthesis=include_synthesis
+            )
+
+            # Optional debate rounds (iterative refinement)
+            debate_history = []
+            if debate_rounds > 1:
+                logger.info(f"[Orchestrator] Starting {debate_rounds - 1} debate rounds")
+                for round_num in range(2, debate_rounds + 1):
+                    debate_result = await self._execute_debate_round(
+                        query=query,
+                        previous_votes=valid_votes,
+                        aggregated_response=aggregation_result['final_response'],
+                        provider=provider,
+                        round_number=round_num
+                    )
+                    debate_history.append(debate_result)
+                    valid_votes = debate_result['votes']
+                    
+                    # Re-aggregate after debate
+                    aggregation_result = await self._aggregate_council_votes(
+                        votes=valid_votes,
+                        strategy=voting_strategy,
+                        query=query,
+                        provider=provider,
+                        include_synthesis=include_synthesis
+                    )
+
+            # Calculate consensus metrics
+            consensus_metrics = self._calculate_consensus_metrics(valid_votes)
+
+            # Prepare final result
+            total_execution_time = (datetime.utcnow() - start_time).total_seconds()
+            
+            result = {
+                'response': aggregation_result['final_response'],
+                'voting_strategy': voting_strategy,
+                'votes': [
+                    {
+                        'agent': vote['agent'],
+                        'response': vote['vote']['response'],
+                        'confidence': vote['vote']['confidence'],
+                        'reasoning': vote['vote']['reasoning'],
+                        'vote_weight': vote['vote']['vote_weight'],
+                        'temperature': vote['vote']['temperature']
+                    }
+                    for vote in valid_votes
+                ],
+                'consensus_metrics': consensus_metrics,
+                'aggregated_confidence': aggregation_result['aggregated_confidence'],
+                'synthesis_used': aggregation_result.get('synthesis_used', False),
+                'sources': [],  # No RAG sources - council uses direct LLM calls
+                'failed_votes': failed_votes,
+                'debate_rounds': len(debate_history),
+                'debate_history': debate_history if debate_history else None,
+                'agents_involved': [vote['agent'] for vote in valid_votes],
+                'agent_logs': agent_logs,
+                'execution_time': total_execution_time,
+                'token_usage': self._aggregate_token_usage(valid_votes),
+                'provider': provider
+            }
+
+            # Add to execution history
+            self.execution_history.append({
+                'type': 'council_voting',
+                'query': query[:100],
+                'result': 'success',
+                'timestamp': datetime.utcnow().isoformat()
+            })
+
+            logger.info(f"[Orchestrator] Council voting completed in {total_execution_time:.2f}s "
+                       f"(consensus: {consensus_metrics['consensus_level']:.2f})")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"[Orchestrator] Council voting failed: {e}")
+            self.execution_history.append({
+                'type': 'council_voting',
+                'query': query[:100],
+                'result': 'failed',
+                'error': str(e),
+                'timestamp': datetime.utcnow().isoformat()
+            })
+            raise
+
+    async def _aggregate_council_votes(
+        self,
+        votes: List[Dict[str, Any]],
+        strategy: str,
+        query: str,
+        provider: str,
+        include_synthesis: bool
+    ) -> Dict[str, Any]:
+        """
+        Aggregate votes from council agents based on strategy
+        """
+        from app.services.llm_service import llm_service
+        
+        if strategy == "highest_confidence":
+            # Select response with highest confidence
+            best_vote = max(votes, key=lambda v: v['vote']['confidence'])
+            return {
+                'final_response': best_vote['vote']['response'],
+                'aggregated_confidence': best_vote['vote']['confidence'],
+                'strategy_used': 'highest_confidence',
+                'selected_agent': best_vote['agent']
+            }
+
+        elif strategy == "weighted_confidence":
+            # Weight responses by confidence scores
+            total_weight = sum(v['vote']['confidence'] * v['vote']['vote_weight'] for v in votes)
+            if total_weight == 0:
+                avg_confidence = sum(v['vote']['confidence'] for v in votes) / len(votes)
+            else:
+                avg_confidence = total_weight / sum(v['vote']['vote_weight'] for v in votes)
+
+            # Select highest confidence response
+            best_vote = max(votes, key=lambda v: v['vote']['confidence'])
+            
+            if include_synthesis:
+                # Synthesize all responses
+                synthesis = await self._synthesize_responses(votes, query, provider)
+                return {
+                    'final_response': synthesis,
+                    'aggregated_confidence': avg_confidence,
+                    'strategy_used': 'weighted_confidence_synthesis',
+                    'synthesis_used': True
+                }
+            else:
+                return {
+                    'final_response': best_vote['vote']['response'],
+                    'aggregated_confidence': avg_confidence,
+                    'strategy_used': 'weighted_confidence',
+                    'selected_agent': best_vote['agent']
+                }
+
+        elif strategy == "synthesis":
+            # Always synthesize responses
+            synthesis = await self._synthesize_responses(votes, query, provider)
+            avg_confidence = sum(v['vote']['confidence'] for v in votes) / len(votes)
+            
+            return {
+                'final_response': synthesis,
+                'aggregated_confidence': avg_confidence,
+                'strategy_used': 'synthesis',
+                'synthesis_used': True
+            }
+
+        elif strategy == "majority":
+            # Select response closest to average confidence
+            confidence_levels = [v['vote']['confidence'] for v in votes]
+            avg_confidence = sum(confidence_levels) / len(confidence_levels)
+            closest_vote = min(votes, key=lambda v: abs(v['vote']['confidence'] - avg_confidence))
+            
+            return {
+                'final_response': closest_vote['vote']['response'],
+                'aggregated_confidence': avg_confidence,
+                'strategy_used': 'majority',
+                'selected_agent': closest_vote['agent']
+            }
+
+        else:
+            raise ValueError(f"Unknown voting strategy: {strategy}")
+
+    async def _synthesize_responses(
+        self,
+        votes: List[Dict[str, Any]],
+        query: str,
+        provider: str
+    ) -> str:
+        """Synthesize multiple agent responses into a coherent final answer"""
+        from app.services.llm_service import llm_service
+        
+        responses_text = "\n\n".join([
+            f"Agent: {vote['agent']}\n"
+            f"Confidence: {vote['vote']['confidence']:.2f}\n"
+            f"Response: {vote['vote']['response']}\n"
+            f"Reasoning: {vote['vote']['reasoning']}"
+            for vote in votes
+        ])
+
+        synthesis_prompt = f"""You are synthesizing responses from multiple expert agents who have evaluated the same query.
+
+Query: {query}
+
+Agent Responses:
+{responses_text}
+
+Task: Create a comprehensive, coherent response that:
+1. Integrates the best insights from all agents
+2. Resolves any contradictions or differences
+3. Maintains factual accuracy
+4. Provides a clear, well-structured answer
+5. Acknowledges areas of uncertainty if agents disagree
+
+Synthesized Response:"""
+
+        result = await llm_service.generate_response(
+            prompt=synthesis_prompt,
+            provider=provider,
+            system_message="You are an expert at synthesizing multiple perspectives into coherent, high-quality responses."
+        )
+
+        return result['content']
+
+    async def _execute_debate_round(
+        self,
+        query: str,
+        previous_votes: List[Dict[str, Any]],
+        aggregated_response: str,
+        provider: str,
+        round_number: int
+    ) -> Dict[str, Any]:
+        """Execute a debate round where agents can refine their responses"""
+        from app.agents.base_agents import get_council_agents
+        
+        logger.info(f"[Orchestrator] Executing debate round {round_number}")
+
+        # Build debate context
+        debate_context = f"""Previous Round Summary:
+Aggregated Response: {aggregated_response}
+
+Other Agents' Perspectives:
+{self._format_other_perspectives(previous_votes)}
+
+Consider the other agents' viewpoints and refine your response if needed."""
+
+        # Execute council agents again with debate context
+        council_agents = get_council_agents()
+        council_input = {
+            'query': query,
+            'context': debate_context,
+            'retrieved_docs': []
+        }
+
+        refined_votes = await asyncio.gather(*[
+            agent.execute(council_input, provider)
+            for agent in council_agents
+        ], return_exceptions=True)
+
+        valid_votes = [
+            vote for vote in refined_votes
+            if not isinstance(vote, Exception) and vote.get('status') == 'completed'
+        ]
+
+        return {
+            'round': round_number,
+            'votes': valid_votes,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+
+    def _format_other_perspectives(self, votes: List[Dict[str, Any]]) -> str:
+        """Format other agents' perspectives for debate context"""
+        return "\n\n".join([
+            f"{vote['agent']}: {vote['vote']['response'][:300]}..."
+            for vote in votes
+        ])
+
+    def _calculate_consensus_metrics(self, votes: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate consensus metrics from council votes"""
+        if not votes:
+            return {
+                'consensus_level': 0.0,
+                'confidence_variance': 0.0,
+                'agreement_score': 0.0,
+                'avg_confidence': 0.0,
+                'min_confidence': 0.0,
+                'max_confidence': 0.0
+            }
+
+        confidences = [v['vote']['confidence'] for v in votes]
+        avg_confidence = sum(confidences) / len(confidences)
+        
+        # Calculate variance in confidence scores (lower = more consensus)
+        variance = sum((c - avg_confidence) ** 2 for c in confidences) / len(confidences)
+        
+        # Consensus level: high when confidence is high and variance is low
+        consensus_level = avg_confidence * (1 - min(variance, 1.0))
+        
+        # Agreement score: inverse of variance (0 to 1)
+        agreement_score = max(0.0, 1.0 - variance)
+
+        return {
+            'consensus_level': round(consensus_level, 3),
+            'confidence_variance': round(variance, 3),
+            'agreement_score': round(agreement_score, 3),
+            'avg_confidence': round(avg_confidence, 3),
+            'min_confidence': round(min(confidences), 3),
+            'max_confidence': round(max(confidences), 3)
+        }
+
+    def _aggregate_token_usage(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Aggregate token usage from multiple agent results"""
+        total_usage = {
+            'prompt_tokens': 0,
+            'completion_tokens': 0,
+            'total_tokens': 0,
+            'operations': []
+        }
+
+        for result in results:
+            token_usage = result.get('token_usage', {})
+            if token_usage:
+                total_usage['prompt_tokens'] += token_usage.get('prompt_tokens', 0)
+                total_usage['completion_tokens'] += token_usage.get('completion_tokens', 0)
+                total_usage['total_tokens'] += token_usage.get('total_tokens', 0)
+                total_usage['operations'].append({
+                    'agent': result.get('agent', 'unknown'),
+                    'tokens': token_usage
+                })
+
+        return total_usage
+
     def get_agent_status(self) -> Dict[str, Any]:
         """Get status of all agents"""
         status = {

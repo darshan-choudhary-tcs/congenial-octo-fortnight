@@ -52,6 +52,14 @@ export default function DashboardPage() {
       color: 'primary.main',
     },
     {
+      title: 'Council of Agents',
+      description: 'Multi-agent consensus with diverse AI perspectives',
+      icon: BrainIcon,
+      href: '/dashboard/council',
+      permission: 'chat:use',
+      color: 'secondary.main',
+    },
+    {
       title: 'Documents',
       description: 'Upload and manage knowledge base documents',
       icon: FileTextIcon,
@@ -65,7 +73,7 @@ export default function DashboardPage() {
       icon: BrainIcon,
       href: '/dashboard/ocr',
       permission: 'documents:create',
-      color: 'secondary.main',
+      color: 'info.main',
     },
     {
       title: 'Explainability',
@@ -73,14 +81,14 @@ export default function DashboardPage() {
       icon: BarChart3Icon,
       href: '/dashboard/explainability',
       permission: 'explain:view',
-      color: 'info.main',
+      color: 'warning.main',
     },
     {
       title: 'Utilities',
       description: 'Tables, forms, charts and other UI components',
       icon: CodeIcon,
       href: '/dashboard/utilities',
-      color: 'warning.main',
+      color: 'info.main',
     },
     {
       title: 'Admin',
