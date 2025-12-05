@@ -136,9 +136,9 @@ idx_nan_rate = np.random.choice(df.index, size=int(n * 0.01), replace=False)
 df.loc[idx_nan_rate, 'rate_coal_inr'] = np.nan
 
 # Save Corrupted Data
-csv_name = 'industrial_energy_anomalies_2025.csv'
+csv_name = 'historical_data_consumption_mix_2025.csv'
 df.to_csv(csv_name, index=False)
 
-print(f"Corrupted File generated: {csv_name}")
-print("Sample of Anomalies (Negative Coal):")
-print(df[df['source_coal_kwh'] < 0][['timestamp', 'source_coal_kwh', 'grid_provider']].head())
+# print(f"Corrupted File generated: {csv_name}")
+# print("Sample of Anomalies (Negative Coal):")
+# print(df[df['source_coal_kwh'] < 0][['timestamp', 'source_coal_kwh', 'grid_provider']].head())

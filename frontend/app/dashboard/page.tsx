@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { useRouter } from 'next/navigation'
 import {
@@ -19,7 +19,10 @@ import {
   Toolbar,
   Stack,
   Paper,
-  CircularProgress
+  CircularProgress,
+  Alert,
+  Skeleton,
+  Chip
 } from '@mui/material'
 import { useSnackbar } from '@/components/SnackbarProvider'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -31,9 +34,63 @@ import {
   BarChart as BarChart3Icon,
   Logout as LogOutIcon,
   Code as CodeIcon,
-  Home as HomeIcon
+  Home as HomeIcon,
+  TrendingUp as TrendingUpIcon,
+  Lightbulb as LightbulbIcon,
+  AttachMoney as MoneyIcon,
+  Business as BusinessIcon,
+  LocationOn as LocationIcon,
+  CalendarMonth as CalendarIcon,
+  EnergySavingsLeaf as LeafIcon
 } from '@mui/icons-material'
-import { authAPI } from '@/lib/api'
+import { authAPI, profileAPI } from '@/lib/api'
+import CountUp from 'react-countup'
+import {
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts'
+
+interface ProfileData {
+  id: number
+  user_id: number
+  industry: string
+  location: string
+  sustainability_target_kp1: number
+  sustainability_target_kp2: number
+  budget: number
+  historical_data_path: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface HistoricalData {
+  total_renewable_kwh: number
+  total_non_renewable_kwh: number
+  renewable_percentage: number
+  non_renewable_percentage: number
+  total_cost_inr: number
+  average_unit_price_inr: number
+  total_energy_required_kwh: number
+  monthly_data: any[]
+  energy_mix: Record<string, number>
+  provider_distribution: any[]
+  start_date: string
+  end_date: string
+  total_records: number
+}
 
 export default function DashboardPage() {
   const { user, logout, hasPermission, hasRole, refreshUser } = useAuth()
@@ -41,6 +98,50 @@ export default function DashboardPage() {
   const { showSnackbar } = useSnackbar()
   const [updatingProvider, setUpdatingProvider] = useState(false)
   const [updatingExplainability, setUpdatingExplainability] = useState(false)
+
+  // New state for profile and historical data
+  const [profile, setProfile] = useState<ProfileData | null>(null)
+  const [historicalData, setHistoricalData] = useState<HistoricalData | null>(null)
+  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [loadingHistorical, setLoadingHistorical] = useState(false)
+  const [profileError, setProfileError] = useState('')
+  const [historicalError, setHistoricalError] = useState('')
+
+  // Fetch profile and historical data
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      try {
+        setLoadingProfile(true)
+        const response = await profileAPI.getProfile()
+        setProfile(response.data)
+        setProfileError('')
+
+        // If historical data exists, fetch it
+        if (response.data.historical_data_path) {
+          setLoadingHistorical(true)
+          try {
+            const histResponse = await profileAPI.getHistoricalData({ aggregation: 'monthly' })
+            setHistoricalData(histResponse.data)
+            setHistoricalError('')
+          } catch (err: any) {
+            console.error('Error fetching historical data:', err)
+            setHistoricalError(err.response?.data?.detail || 'Failed to load historical data')
+          } finally {
+            setLoadingHistorical(false)
+          }
+        }
+      } catch (err: any) {
+        console.error('Error fetching profile:', err)
+        setProfileError(err.response?.data?.detail || 'Failed to load profile')
+      } finally {
+        setLoadingProfile(false)
+      }
+    }
+
+    if (user) {
+      fetchProfileData()
+    }
+  }, [user])
 
   const features = [
     {
@@ -60,22 +161,6 @@ export default function DashboardPage() {
       color: 'secondary.main',
     },
     {
-      title: 'Documents',
-      description: 'Upload and manage knowledge base documents',
-      icon: FileTextIcon,
-      href: '/dashboard/documents',
-      permission: 'documents:read',
-      color: 'success.main',
-    },
-    {
-      title: 'OCR',
-      description: 'Extract text from images and PDFs using AI vision',
-      icon: BrainIcon,
-      href: '/dashboard/ocr',
-      permission: 'documents:create',
-      color: 'info.main',
-    },
-    {
       title: 'Explainability',
       description: 'View AI reasoning and confidence scores',
       icon: BarChart3Icon,
@@ -84,27 +169,30 @@ export default function DashboardPage() {
       color: 'warning.main',
     },
     {
-      title: 'Utilities',
-      description: 'Tables, forms, charts and other UI components',
-      icon: CodeIcon,
-      href: '/dashboard/utilities',
-      color: 'info.main',
-    },
-    {
-      title: 'Admin',
+      title: 'Admin Panel',
       description: 'Manage users, roles, and system settings',
       icon: UsersIcon,
       href: '/dashboard/admin',
-      role: 'admin',
+      roles: ['admin', 'super_admin'],
       color: 'error.main',
     },
   ]
 
   const accessibleFeatures = features.filter((feature) => {
     if (feature.role) return hasRole(feature.role)
+    if ((feature as any).roles) return (feature as any).roles.some((role: string) => hasRole(role))
     if (feature.permission) return hasPermission(feature.permission)
     return true
   })
+
+  // Chart colors
+  const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+  const energyMixColors: Record<string, string> = {
+    Solar: '#f59e0b',
+    Wind: '#3b82f6',
+    Hydro: '#10b981',
+    Coal: '#6b7280'
+  }
 
   const handleUpdateProvider = async (value: string) => {
     setUpdatingProvider(true)
@@ -171,34 +259,381 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Box sx={{ mb: 6 }}>
+        <Box sx={{ mb: 4 }}>
           <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-            Welcome back!
+            Company Dashboard
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Choose a feature to get started with AI-powered capabilities
+            Monitor your sustainability KPIs and energy consumption data
           </Typography>
         </Box>
 
-        {/* Feature Grid */}
-        <Grid container spacing={3}>
-          {accessibleFeatures.map((feature) => {
+        {/* Error Messages */}
+        {profileError && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {profileError}
+          </Alert>
+        )}
+
+        {/* Company Profile & KPIs Section */}
+        {loadingProfile ? (
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Grid item xs={12} sm={6} md={4} key={i}>
+                <Skeleton variant="rectangular" height={140} sx={{ borderRadius: 2 }} />
+              </Grid>
+            ))}
+          </Grid>
+        ) : profile ? (
+          <>
+            {/* KPI Cards */}
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              {/* Company Info */}
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ height: '100%', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <BusinessIcon sx={{ color: 'white' }} />
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: 'white' }}>
+                        Industry
+                      </Typography>
+                    </Box>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
+                      {profile.industry}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>
+                      Sector classification
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ height: '100%', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <LocationIcon sx={{ color: 'white' }} />
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: 'white' }}>
+                        Location
+                      </Typography>
+                    </Box>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
+                      {profile.location}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>
+                      Operating region
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ height: '100%', background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <MoneyIcon sx={{ color: 'white' }} />
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: 'white' }}>
+                        Annual Budget
+                      </Typography>
+                    </Box>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
+                      <CountUp end={profile.budget} duration={2} separator="," prefix="₹" />
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>
+                      Sustainability initiatives
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ height: '100%', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <CalendarIcon sx={{ color: 'white' }} />
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: 'white' }}>
+                        Target Year (KP1)
+                      </Typography>
+                    </Box>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
+                      {profile.sustainability_target_kp1}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>
+                      Zero non-renewable goal
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ height: '100%', background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <TrendingUpIcon sx={{ color: 'white' }} />
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: 'white' }}>
+                        Renewable Target (KP2)
+                      </Typography>
+                    </Box>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
+                      <CountUp end={profile.sustainability_target_kp2} duration={2} decimals={1} suffix="%" />
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>
+                      Renewable mix increase
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ height: '100%', background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <LeafIcon sx={{ color: '#10b981' }} />
+                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                        Current Renewable %
+                      </Typography>
+                    </Box>
+                    {loadingHistorical ? (
+                      <Skeleton width={80} height={48} />
+                    ) : historicalData ? (
+                      <>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: '#10b981', mb: 1 }}>
+                          <CountUp end={historicalData.renewable_percentage} duration={2} decimals={1} suffix="%" />
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          From historical data
+                        </Typography>
+                      </>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No data available
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            {/* Historical Data Visualizations */}
+            {historicalData && (
+              <>
+                <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
+                  Historical Energy Data Analysis
+                </Typography>
+
+                {historicalError && (
+                  <Alert severity="warning" sx={{ mb: 3 }}>
+                    {historicalError}
+                  </Alert>
+                )}
+
+                <Grid container spacing={3} sx={{ mb: 4 }}>
+                  {/* Energy Mix Pie Chart */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                          Energy Source Mix
+                        </Typography>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={Object.entries(historicalData.energy_mix).map(([name, value]) => ({
+                                name,
+                                value
+                              }))}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                              outerRadius={100}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {Object.keys(historicalData.energy_mix).map((key, index) => (
+                                <Cell key={`cell-${index}`} fill={energyMixColors[key] || COLORS[index]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value: number) => `${value.toFixed(2)} kWh`} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Summary Stats */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
+                          Energy Summary
+                        </Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={6}>
+                            <Typography variant="body2" color="text.secondary">
+                              Total Energy
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                              {historicalData.total_energy_required_kwh.toLocaleString()} kWh
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Typography variant="body2" color="text.secondary">
+                              Total Cost
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                              ₹{historicalData.total_cost_inr.toLocaleString()}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Typography variant="body2" color="text.secondary">
+                              Renewable
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 600, color: '#10b981' }}>
+                              {historicalData.total_renewable_kwh.toLocaleString()} kWh
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Typography variant="body2" color="text.secondary">
+                              Non-Renewable
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 600, color: '#ef4444' }}>
+                              {historicalData.total_non_renewable_kwh.toLocaleString()} kWh
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Typography variant="body2" color="text.secondary">
+                              Average Unit Price
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                              ₹{historicalData.average_unit_price_inr.toFixed(2)}/kWh
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Typography variant="caption" color="text.secondary">
+                              Data Period: {historicalData.start_date} to {historicalData.end_date}
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Monthly Energy Consumption Trend */}
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                          Monthly Energy Consumption Trends
+                        </Typography>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <LineChart data={historicalData.monthly_data}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" />
+                            <YAxis />
+                            <Tooltip />
+                            <Legend />
+                            <Line
+                              type="monotone"
+                              dataKey="renewable_kwh"
+                              stroke="#10b981"
+                              strokeWidth={2}
+                              name="Renewable (kWh)"
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="non_renewable_kwh"
+                              stroke="#ef4444"
+                              strokeWidth={2}
+                              name="Non-Renewable (kWh)"
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Monthly Cost Trend */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                          Monthly Cost Analysis
+                        </Typography>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <AreaChart data={historicalData.monthly_data}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" />
+                            <YAxis />
+                            <Tooltip />
+                            <Area
+                              type="monotone"
+                              dataKey="total_cost_inr"
+                              stroke="#3b82f6"
+                              fill="#3b82f6"
+                              fillOpacity={0.6}
+                              name="Total Cost (INR)"
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Renewable Percentage Trend */}
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                          Renewable Energy Percentage
+                        </Typography>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart data={historicalData.monthly_data}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" />
+                            <YAxis />
+                            <Tooltip />
+                            <Bar dataKey="renewable_percentage" fill="#10b981" name="Renewable %" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              </>
+            )}
+
+            {!historicalData && !loadingHistorical && (
+              <Alert severity="info" sx={{ mb: 4 }}>
+                No historical energy data available. Upload historical data during setup to see detailed analytics.
+              </Alert>
+            )}
+          </>
+        ) : null}
+
+        {/* Quick Access Features */}
+        <Typography variant="h5" sx={{ fontWeight: 600, mb: 3, mt: 6 }}>
+          Quick Access
+        </Typography>
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          {accessibleFeatures.slice(0, 6).map((feature) => {
             const Icon = feature.icon
             return (
-              <Grid item xs={12} md={6} lg={4} key={feature.href}>
+              <Grid item xs={12} sm={6} md={4} key={feature.href}>
                 <Card
                   sx={{
                     height: '100%',
                     cursor: 'pointer',
-                    transition: 'box-shadow 0.3s',
+                    transition: 'all 0.3s',
                     '&:hover': {
+                      transform: 'translateY(-4px)',
                       boxShadow: 6
                     }
                   }}
                   onClick={() => router.push(feature.href)}
                 >
                   <CardContent sx={{ p: 3 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Paper
                         elevation={0}
                         sx={{
@@ -209,86 +644,20 @@ export default function DashboardPage() {
                       >
                         <Icon sx={{ fontSize: 28, color: feature.color }} />
                       </Paper>
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        {feature.title}
-                      </Typography>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          {feature.title}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {feature.description}
+                        </Typography>
+                      </Box>
                     </Box>
-                    <Typography variant="body2" color="text.secondary">
-                      {feature.description}
-                    </Typography>
                   </CardContent>
                 </Card>
               </Grid>
             )
           })}
-        </Grid>
-
-        {/* Info Cards */}
-        <Grid container spacing={3} sx={{ mt: 4 }}>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  LLM Provider
-                </Typography>
-                <FormControl fullWidth disabled={updatingProvider}>
-                  <InputLabel>Provider</InputLabel>
-                  <Select
-                    value={user?.preferred_llm || 'custom'}
-                    onChange={(e) => handleUpdateProvider(e.target.value)}
-                    label="Provider"
-                  >
-                    <MenuItem value="custom">Custom API</MenuItem>
-                    <MenuItem value="ollama">Ollama</MenuItem>
-                  </Select>
-                </FormControl>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  Current selection
-                </Typography>
-                {updatingProvider && <CircularProgress size={20} sx={{ mt: 1 }} />}
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Explainability Level
-                </Typography>
-                <FormControl fullWidth disabled={updatingExplainability}>
-                  <InputLabel>Level</InputLabel>
-                  <Select
-                    value={user?.explainability_level || 'basic'}
-                    onChange={(e) => handleUpdateExplainability(e.target.value)}
-                    label="Level"
-                  >
-                    <MenuItem value="basic">Basic</MenuItem>
-                    <MenuItem value="detailed">Detailed</MenuItem>
-                    <MenuItem value="debug">Debug</MenuItem>
-                  </Select>
-                </FormControl>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  Detail level
-                </Typography>
-                {updatingExplainability && <CircularProgress size={20} sx={{ mt: 1 }} />}
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Permissions
-                </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                  {user?.permissions.length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Access rights
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
         </Grid>
       </Container>
     </Box>

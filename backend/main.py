@@ -11,7 +11,7 @@ from jose import jwt, JWTError
 import uvicorn
 from loguru import logger
 
-from app.api.v1 import auth, chat, documents, agents, admin, explainability, utilities, metering, council, prompts
+from app.api.v1 import auth, chat, documents, agents, admin, explainability, utilities, metering, council, prompts, profile
 from app.database.db import init_db, get_db, get_primary_db, set_user_db_context, clear_user_db_context
 from app.database.models import User
 from app.config import settings
@@ -110,6 +110,7 @@ app.include_router(utilities.router, prefix="/api/v1/utilities", tags=["Utilitie
 app.include_router(metering.router, prefix="/api/v1/metering", tags=["Metering"])
 app.include_router(council.router, prefix="/api/v1/council", tags=["Council"])
 app.include_router(prompts.router, prefix="/api/v1/prompts", tags=["Prompts"])
+app.include_router(profile.router, prefix="/api/v1", tags=["Profile"])
 
 @app.get("/")
 async def root():

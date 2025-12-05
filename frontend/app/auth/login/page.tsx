@@ -108,7 +108,7 @@ export default function LoginPage() {
                 Login
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-                Enter your credentials to access the RAG & Multi-Agent System
+                Enter your credentials to access the AERO: AI for Energy Resource Optimization
               </Typography>
 
               <Box component="form" onSubmit={handleSubmit}>

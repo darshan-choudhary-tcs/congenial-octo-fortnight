@@ -6,7 +6,7 @@ import { SnackbarProvider } from '@/components/SnackbarProvider'
 import { AppRouterCacheProvider } from '@mui/material-nextjs/v14-appRouter'
 
 export const metadata: Metadata = {
-  title: 'RAG & Multi-Agent System',
+  title: 'AERO: AI for Energy Resource Optimization',
   description: 'Advanced AI system with RAG, Multi-Agent orchestration, and Explainable AI',
 }
 

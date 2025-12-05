@@ -188,7 +188,18 @@ export default function AdminPage() {
         adminAPI.getLLMConfig(),
       ])
       setUsers(usersRes.data)
-      setRoles(rolesRes.data)
+
+      // Filter roles based on user role
+      let filteredRoles = rolesRes.data
+      if (currentUser?.roles.includes('admin') && !currentUser?.roles.includes('super_admin')) {
+        // Admin users should only see admin and authenticated_user roles
+        filteredRoles = rolesRes.data.filter((role: Role) =>
+          role.name === 'admin' || role.name === 'authenticated_user'
+        )
+      }
+      // Super admin sees all roles (no filtering needed)
+
+      setRoles(filteredRoles)
       setStats(statsRes.data)
       setLLMConfig(configRes.data)
     } catch (error: any) {

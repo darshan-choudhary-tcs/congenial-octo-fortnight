@@ -170,4 +170,12 @@ export const councilAPI = {
   getAgents: () => api.get('/council/agents'),
 }
 
+// Profile API
+export const profileAPI = {
+  getProfile: () => api.get('/profile'),
+
+  getHistoricalData: (params?: { aggregation?: 'daily' | 'monthly' | 'all' }) =>
+    api.get('/profile/historical-data', { params }),
+}
+
 export default api
