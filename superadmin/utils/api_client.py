@@ -228,6 +228,40 @@ class APIClient:
         """Get messages in conversation"""
         return self.make_request(f"/chat/conversations/{conversation_id}/messages")
 
+    # Prompts endpoints
+    def get_prompts(self, category: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get all prompts with optional category filter (admin only)"""
+        params = {"category": category} if category else None
+        return self.make_request("/prompts", params=params)
+
+    def get_prompt(self, name: str) -> Optional[Dict[str, Any]]:
+        """Get specific prompt details (admin only)"""
+        return self.make_request(f"/prompts/{name}")
+
+    def get_prompt_categories(self) -> Optional[Dict[str, Any]]:
+        """Get all prompt categories (admin only)"""
+        return self.make_request("/prompts/categories")
+
+    def get_prompt_stats(self) -> Optional[Dict[str, Any]]:
+        """Get prompt usage statistics (admin only)"""
+        return self.make_request("/prompts/stats")
+
+    def create_prompt(self, prompt_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create custom prompt (admin only)"""
+        return self.make_request("/prompts", method="POST", data=prompt_data)
+
+    def update_prompt(self, name: str, prompt_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update custom prompt (admin only)"""
+        return self.make_request(f"/prompts/{name}", method="PUT", data=prompt_data)
+
+    def delete_prompt(self, name: str) -> Optional[Dict[str, Any]]:
+        """Delete custom prompt (admin only)"""
+        return self.make_request(f"/prompts/{name}", method="DELETE")
+
+    def test_prompt(self, name: str, variables: Dict[str, str]) -> Optional[Dict[str, Any]]:
+        """Test prompt with variables (admin only)"""
+        return self.make_request(f"/prompts/{name}/test", method="POST", data={"variables": variables})
+
 
 # Singleton instance
 api_client = APIClient()

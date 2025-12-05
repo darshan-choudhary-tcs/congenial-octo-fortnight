@@ -115,11 +115,12 @@ def show_llm_config_page():
         return
 
     # Create tabs for different configuration sections
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Custom API Provider",
         "Ollama Provider",
         "RAG Configuration",
         "Agent Settings",
+        "Prompts Management",
         "Backend Logs"
     ])
 
@@ -484,8 +485,258 @@ def show_llm_config_page():
                 st.markdown("**Explainability Config:**")
                 st.json(config.get('explainability', {}))
 
-    # === BACKEND LOGS TAB ===
+    # === PROMPTS MANAGEMENT TAB ===
     with tab5:
+        st.subheader("📝 Prompts Management")
+        st.markdown("Manage and edit AI prompts used throughout the system")
+
+        # Fetch prompts data
+        with st.spinner("Loading prompts..."):
+            prompts_data = api_client.get_prompts()
+            categories_data = api_client.get_prompt_categories()
+            stats_data = api_client.get_prompt_stats()
+
+        if not prompts_data:
+            st.error("Failed to load prompts. Make sure the backend is running and you're logged in as admin.")
+        else:
+            # Display statistics
+            if stats_data:
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Prompts", stats_data.get('total_prompts', 0))
+                with col2:
+                    st.metric("Built-in", stats_data.get('built_in_prompts', 0))
+                with col3:
+                    st.metric("Custom", stats_data.get('custom_prompts', 0))
+                with col4:
+                    st.metric("Total Usage", stats_data.get('total_usage', 0))
+
+            st.markdown("---")
+
+            # Filter and search
+            col1, col2, col3 = st.columns([2, 2, 1])
+            with col1:
+                selected_category = st.selectbox(
+                    "Filter by Category",
+                    options=["All"] + (categories_data.get('categories', []) if categories_data else []),
+                    index=0
+                )
+            with col2:
+                search_term = st.text_input("🔍 Search prompts", placeholder="Enter prompt name or description...")
+            with col3:
+                st.write("")  # Spacing
+                st.write("")  # Spacing
+                if st.button("➕ New Custom Prompt", use_container_width=True):
+                    st.session_state['show_create_prompt'] = True
+
+            # Create new prompt dialog
+            if st.session_state.get('show_create_prompt', False):
+                with st.form("create_prompt_form"):
+                    st.markdown("### Create New Custom Prompt")
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        new_name = st.text_input("Prompt Name*", help="Unique identifier (no spaces)")
+                        new_category = st.selectbox("Category*", options=["custom", "agent", "rag", "llm_service", "vision", "chat", "system"])
+                        new_output_format = st.selectbox("Output Format", options=["text", "json", "structured_text", "markdown"])
+
+                    with col2:
+                        new_description = st.text_area("Description*", help="What does this prompt do?")
+                        new_variables_input = st.text_input("Variables (comma-separated)", placeholder="e.g., query, context, topic")
+
+                    new_template = st.text_area("Prompt Template*", height=200, help="Use {variable_name} for variable placeholders")
+                    new_purpose = st.text_input("Purpose", help="Detailed purpose/use case")
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        submit_create = st.form_submit_button("✅ Create Prompt", use_container_width=True)
+                    with col2:
+                        if st.form_submit_button("❌ Cancel", use_container_width=True):
+                            st.session_state['show_create_prompt'] = False
+                            st.rerun()
+
+                    if submit_create:
+                        if not new_name or not new_description or not new_template:
+                            st.error("Please fill in all required fields (marked with *)")
+                        else:
+                            # Parse variables
+                            new_variables = [v.strip() for v in new_variables_input.split(',') if v.strip()] if new_variables_input else []
+
+                            prompt_data = {
+                                "name": new_name,
+                                "template": new_template,
+                                "category": new_category,
+                                "description": new_description,
+                                "variables": new_variables,
+                                "output_format": new_output_format,
+                                "purpose": new_purpose if new_purpose else new_description
+                            }
+
+                            with st.spinner("Creating prompt..."):
+                                result = api_client.create_prompt(prompt_data)
+
+                            if result:
+                                st.success(f"✅ Prompt '{new_name}' created successfully!")
+                                st.session_state['show_create_prompt'] = False
+                                st.rerun()
+
+            st.markdown("---")
+
+            # Filter prompts
+            filtered_prompts = prompts_data.get('prompts', [])
+            if selected_category != "All":
+                filtered_prompts = [p for p in filtered_prompts if p.get('category') == selected_category]
+            if search_term:
+                search_lower = search_term.lower()
+                filtered_prompts = [p for p in filtered_prompts if
+                                  search_lower in p.get('name', '').lower() or
+                                  search_lower in p.get('description', '').lower()]
+
+            st.markdown(f"### Showing {len(filtered_prompts)} prompt(s)")
+
+            # Display prompts in expandable sections
+            for prompt in filtered_prompts:
+                is_custom = prompt.get('is_custom', False)
+                prompt_name = prompt.get('name', '')
+
+                # Create unique key for each prompt
+                with st.expander(
+                    f"{'🔧' if is_custom else '📌'} **{prompt_name}** - {prompt.get('category', '')} | "
+                    f"{'⭐ Custom' if is_custom else '🔒 Built-in'} | Used: {prompt.get('usage_count', 0)} times",
+                    expanded=False
+                ):
+                    # Display mode
+                    if not st.session_state.get(f'edit_mode_{prompt_name}', False):
+                        col1, col2 = st.columns([3, 1])
+
+                        with col1:
+                            st.markdown(f"**Description:** {prompt.get('description', 'N/A')}")
+                            st.markdown(f"**Purpose:** {prompt.get('purpose', 'N/A')}")
+                            st.markdown(f"**Category:** `{prompt.get('category', 'N/A')}`")
+                            st.markdown(f"**Output Format:** `{prompt.get('output_format', 'N/A')}`")
+                            st.markdown(f"**Version:** `{prompt.get('version', 'N/A')}`")
+                            if prompt.get('variables'):
+                                st.markdown(f"**Variables:** `{', '.join(prompt['variables'])}`")
+                            else:
+                                st.markdown("**Variables:** None")
+
+                        with col2:
+                            st.markdown("**Actions:**")
+                            if is_custom:
+                                if st.button(f"✏️ Edit", key=f"edit_btn_{prompt_name}", use_container_width=True):
+                                    st.session_state[f'edit_mode_{prompt_name}'] = True
+                                    st.rerun()
+                                if st.button(f"🗑️ Delete", key=f"del_btn_{prompt_name}", use_container_width=True):
+                                    if st.session_state.get(f'confirm_delete_{prompt_name}', False):
+                                        with st.spinner("Deleting..."):
+                                            result = api_client.delete_prompt(prompt_name)
+                                        if result:
+                                            st.success(f"✅ Deleted '{prompt_name}'")
+                                            st.session_state[f'confirm_delete_{prompt_name}'] = False
+                                            st.rerun()
+                                    else:
+                                        st.session_state[f'confirm_delete_{prompt_name}'] = True
+                                        st.warning("Click again to confirm deletion")
+                            else:
+                                st.info("Built-in prompts are read-only")
+
+                            if st.button(f"🧪 Test", key=f"test_btn_{prompt_name}", use_container_width=True):
+                                st.session_state[f'show_test_{prompt_name}'] = not st.session_state.get(f'show_test_{prompt_name}', False)
+                                st.rerun()
+
+                        # Template display
+                        st.markdown("**Template:**")
+                        st.code(prompt.get('template', ''), language="text")
+
+                        # Test prompt section
+                        if st.session_state.get(f'show_test_{prompt_name}', False):
+                            st.markdown("---")
+                            st.markdown("### 🧪 Test Prompt")
+
+                            variables = prompt.get('variables', [])
+                            if variables:
+                                with st.form(f"test_form_{prompt_name}"):
+                                    st.markdown("**Enter variable values:**")
+                                    test_vars = {}
+                                    for var in variables:
+                                        test_vars[var] = st.text_input(f"{var}", key=f"test_var_{prompt_name}_{var}")
+
+                                    if st.form_submit_button("▶️ Run Test", use_container_width=True):
+                                        if all(test_vars.values()):
+                                            with st.spinner("Testing prompt..."):
+                                                result = api_client.test_prompt(prompt_name, test_vars)
+
+                                            if result:
+                                                st.success("✅ Test successful!")
+                                                st.markdown("**Formatted Output:**")
+                                                st.code(result.get('formatted_prompt', ''), language="text")
+                                        else:
+                                            st.error("Please fill in all variable values")
+                            else:
+                                st.info("This prompt has no variables to test")
+
+                    # Edit mode (only for custom prompts)
+                    else:
+                        with st.form(f"edit_form_{prompt_name}"):
+                            st.markdown("### ✏️ Edit Prompt")
+
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                edit_category = st.selectbox("Category", options=["custom", "agent", "rag", "llm_service", "vision", "chat", "system"],
+                                                            index=["custom", "agent", "rag", "llm_service", "vision", "chat", "system"].index(prompt.get('category', 'custom')))
+                                edit_output_format = st.selectbox("Output Format", options=["text", "json", "structured_text", "markdown"],
+                                                                 index=["text", "json", "structured_text", "markdown"].index(prompt.get('output_format', 'text')))
+
+                            with col2:
+                                edit_description = st.text_area("Description", value=prompt.get('description', ''))
+                                edit_variables_input = st.text_input("Variables (comma-separated)", value=", ".join(prompt.get('variables', [])))
+
+                            edit_template = st.text_area("Template", value=prompt.get('template', ''), height=200)
+                            edit_purpose = st.text_input("Purpose", value=prompt.get('purpose', ''))
+
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.form_submit_button("💾 Save Changes", use_container_width=True):
+                                    edit_variables = [v.strip() for v in edit_variables_input.split(',') if v.strip()] if edit_variables_input else []
+
+                                    update_data = {
+                                        "template": edit_template,
+                                        "category": edit_category,
+                                        "description": edit_description,
+                                        "variables": edit_variables,
+                                        "output_format": edit_output_format,
+                                        "purpose": edit_purpose
+                                    }
+
+                                    with st.spinner("Saving changes..."):
+                                        result = api_client.update_prompt(prompt_name, update_data)
+
+                                    if result:
+                                        st.success(f"✅ Updated '{prompt_name}'!")
+                                        st.session_state[f'edit_mode_{prompt_name}'] = False
+                                        st.rerun()
+
+                            with col2:
+                                if st.form_submit_button("❌ Cancel", use_container_width=True):
+                                    st.session_state[f'edit_mode_{prompt_name}'] = False
+                                    st.rerun()
+
+            # Most used prompts
+            if stats_data and stats_data.get('most_used'):
+                st.markdown("---")
+                st.markdown("### 📊 Most Used Prompts")
+                most_used = stats_data['most_used'][:5]
+                for idx, prompt in enumerate(most_used, 1):
+                    col1, col2, col3 = st.columns([0.5, 3, 1])
+                    with col1:
+                        st.markdown(f"**{idx}.**")
+                    with col2:
+                        st.markdown(f"`{prompt.get('name', 'Unknown')}` ({prompt.get('category', 'N/A')})")
+                    with col3:
+                        st.markdown(f"**{prompt.get('usage_count', 0)}** uses")
+
+    # === BACKEND LOGS TAB ===
+    with tab6:
         st.subheader("📋 Backend Logs")
         st.markdown("Monitor backend server logs in real-time")
 
