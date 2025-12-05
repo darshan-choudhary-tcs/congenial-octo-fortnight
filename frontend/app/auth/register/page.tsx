@@ -73,7 +73,7 @@ export default function RegisterPage() {
                 WebkitTextFillColor: 'transparent'
               }}
             >
-              AI RAG Platform
+              AERO: AI for Energy Resource Optimization
             </Typography>
           </Box>
           <Stack direction="row" spacing={2} alignItems="center">

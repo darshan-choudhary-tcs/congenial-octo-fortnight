@@ -17,7 +17,7 @@ interface User {
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (username: string, password: string) => Promise<void>
+  login: (username: string, password: string) => Promise<{ requiresSetup: boolean }>
   logout: () => void
   register: (data: any) => Promise<void>
   refreshUser: () => Promise<void>
@@ -53,6 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await authAPI.login(username, password)
     localStorage.setItem('token', response.data.access_token)
     await checkAuth()
+
+    return {
+      requiresSetup: response.data.requires_setup || false
+    }
   }
 
   const logout = () => {

@@ -33,9 +33,15 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String)
+    company = Column(String)  # Company/Organization name
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Onboarding fields
+    is_first_login = Column(Boolean, default=True)
+    setup_completed_at = Column(DateTime, nullable=True)
+    company_database_name = Column(String, nullable=True)
 
     # Preferences
     preferred_llm = Column(String, default="ollama")  # custom or ollama
@@ -266,3 +272,27 @@ class TokenUsage(Base):
     conversation = relationship("Conversation")
     message = relationship("Message")
     agent_log = relationship("AgentLog")
+
+class Profile(Base):
+    __tablename__ = "profile"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False, unique=True)  # One profile per user/company
+
+    # Company Information
+    industry = Column(String, nullable=False)  # ITeS, Manufacturing, Hospitality
+    location = Column(String, nullable=False)
+
+    # Sustainability Targets
+    sustainability_target_kp1 = Column(Integer, nullable=False)  # Target Year for Zero Non-renewable
+    sustainability_target_kp2 = Column(Float, nullable=False)  # Percentage increase in renewable mix
+
+    # Historical Data
+    historical_data_path = Column(String, nullable=True)  # Path to uploaded CSV file
+
+    # Budget
+    budget = Column(Float, nullable=False)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -3,14 +3,17 @@ Security utilities for authentication and authorization
 """
 from datetime import datetime, timedelta
 from typing import Optional
+import secrets
+import string
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from loguru import logger
 
 from app.config import settings
-from app.database.db import get_db
+from app.database.db import get_db, get_primary_db, set_user_db_context, clear_user_db_context
 from app.database.models import User
 
 # Password hashing
@@ -26,6 +29,40 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """Hash a password"""
     return pwd_context.hash(password)
+
+def generate_secure_password(length: int = 16) -> str:
+    """
+    Generate a secure random password
+
+    Args:
+        length: Length of password (default: 16)
+
+    Returns:
+        Randomly generated secure password
+    """
+    # Define character sets
+    lowercase = string.ascii_lowercase
+    uppercase = string.ascii_uppercase
+    digits = string.digits
+    special = "!@#$%^&*()-_=+[]{}|;:,.<>?"
+
+    # Ensure at least one character from each set
+    password = [
+        secrets.choice(lowercase),
+        secrets.choice(uppercase),
+        secrets.choice(digits),
+        secrets.choice(special)
+    ]
+
+    # Fill the rest with random characters from all sets
+    all_chars = lowercase + uppercase + digits + special
+    password.extend(secrets.choice(all_chars) for _ in range(length - 4))
+
+    # Shuffle to avoid predictable patterns
+    password_list = list(password)
+    secrets.SystemRandom().shuffle(password_list)
+
+    return ''.join(password_list)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create JWT access token"""
@@ -49,9 +86,17 @@ def decode_token(token: str) -> dict:
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_primary_db)  # Always use primary DB to fetch user
 ) -> User:
-    """Get current authenticated user"""
+    """
+    Get current authenticated user and set database context.
+
+    This function:
+    1. Always queries the primary database to get user information
+    2. Sets the database context based on user's company database
+    3. Super admins always use primary database
+    4. Regular admins and users use their company database
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -72,6 +117,20 @@ async def get_current_user(
 
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    # Set database context based on user role and company database
+    user_roles = [role.name for role in user.roles]
+
+    if "super_admin" in user_roles:
+        # Super admins always use primary database
+        clear_user_db_context()
+    elif user.company_database_name:
+        # Regular admins and users use their company database
+        set_user_db_context(user.company_database_name)
+        logger.info(f"User {user.username} connected to company database: {user.company_database_name}")
+    else:
+        # Fallback to primary database if no company database assigned
+        clear_user_db_context()
 
     return user
 
@@ -112,6 +171,26 @@ def require_role(role_name: str):
         return current_user
     return role_checker
 
+def require_super_admin(current_user: User = Depends(get_current_active_user)) -> User:
+    """Dependency to require super_admin role"""
+    user_roles = [role.name for role in current_user.roles]
+    if "super_admin" not in user_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super Admin access required"
+        )
+    return current_user
+
+def require_admin_or_super_admin(current_user: User = Depends(get_current_active_user)) -> User:
+    """Dependency to require admin or super_admin role"""
+    user_roles = [role.name for role in current_user.roles]
+    if "super_admin" not in user_roles and "admin" not in user_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or Super Admin access required"
+        )
+    return current_user
+
 def format_user_response(user: User) -> dict:
     """Format user data with roles and permissions for API responses
 
@@ -133,6 +212,7 @@ def format_user_response(user: User) -> dict:
         "username": user.username,
         "email": user.email,
         "full_name": user.full_name,
+        "company": user.company,
         "is_active": user.is_active,
         "roles": roles,
         "permissions": permissions

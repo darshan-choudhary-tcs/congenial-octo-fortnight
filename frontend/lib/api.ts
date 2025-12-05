@@ -44,6 +44,11 @@ export const authAPI = {
 
   changePassword: (old_password: string, new_password: string) =>
     api.post('/auth/change-password', { old_password, new_password }),
+
+  completeSetup: (formData: FormData) =>
+    api.post('/auth/complete-setup', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
 }
 
 // Chat API
@@ -135,6 +140,9 @@ export const adminAPI = {
   updateUser: (userId: string | number, data: any) => api.put(`/admin/users/${userId}`, data),
 
   deleteUser: (userId: string | number) => api.delete(`/admin/users/${userId}`),
+
+  onboardAdmin: (data: { email: string; company: string; name: string }) =>
+    api.post('/admin/onboard-admin', data),
 
   listRoles: () => api.get('/admin/roles'),
   getRoles: () => api.get('/admin/roles'),

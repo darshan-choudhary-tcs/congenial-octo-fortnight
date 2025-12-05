@@ -128,7 +128,7 @@ export default function LandingPage() {
                 WebkitTextFillColor: 'transparent'
               }}
             >
-              AI RAG Platform
+              AERO: AI for Energy Resource Optimization
             </Typography>
           </Box>
           <Stack direction="row" spacing={2} alignItems="center">
@@ -500,7 +500,7 @@ export default function LandingPage() {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <BrainIcon sx={{ fontSize: 28, color: 'primary.light' }} />
                 <Typography sx={{ fontWeight: 700, color: 'white' }}>
-                  AI RAG Platform
+                  AERO: AI for Energy Resource Optimization
                 </Typography>
               </Box>
               <Typography variant="body2" sx={{ color: 'grey.500' }}>
@@ -567,7 +567,7 @@ export default function LandingPage() {
           </Grid>
           <Box sx={{ borderTop: '1px solid', borderColor: 'grey.800', pt: 4, textAlign: 'center' }}>
             <Typography variant="body2" sx={{ color: 'grey.500' }}>
-              &copy; {new Date().getFullYear()} AI RAG Platform. All rights reserved.
+              &copy; {new Date().getFullYear()} AERO: AI for Energy Resource Optimization. All rights reserved.
             </Typography>
           </Box>
         </Container>

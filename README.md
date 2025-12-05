@@ -376,6 +376,51 @@ SIMILARITY_THRESHOLD=0.7     # Minimum similarity score
 - Add rate limiting
 - Use production-grade web server (Gunicorn/Uvicorn workers)
 
+## 🛠️ Database Management
+
+### Reset All Databases
+
+**⚠️ WARNING: This will delete ALL data!**
+
+A comprehensive utility is provided to reset all databases and files:
+
+```bash
+# Run the interactive reset utility
+./reset_all_dbs.sh
+
+# Or directly with Python
+cd backend
+python scripts/reset_all_databases.py
+```
+
+**Options available:**
+1. **Complete Reset** - Delete all databases, ChromaDB, uploaded files, and tokens
+2. **SQLite Only** - Delete all SQLite databases (primary + company-specific)
+3. **ChromaDB Only** - Delete the vector database
+4. **Uploads Only** - Delete all uploaded files
+
+**What gets deleted:**
+- 📁 Primary database (`data/data_store.db`)
+- 📁 Company-specific databases (`data/company_*.db`)
+- 📁 ChromaDB vector store (`chroma_db/`)
+- 📁 Uploaded files (`uploads/`)
+- 📁 Token files (`token/`)
+
+After reset:
+- Restart the backend server
+- Databases will be recreated automatically
+- Default users will be restored
+- Upload new documents as needed
+
+### Reset Single Database
+
+To reset only the primary database schema (keeps files):
+
+```bash
+cd backend
+python scripts/reset_database.py
+```
+
 ## 🐛 Troubleshooting
 
 ### Backend won't start
@@ -400,6 +445,11 @@ SIMILARITY_THRESHOLD=0.7     # Minimum similarity score
 - **Ollama**: Ensure Ollama is running (`ollama serve`)
 - Check network connectivity
 - Review backend logs for specific error messages
+
+### Database Issues
+- Try resetting databases with `./reset_all_dbs.sh`
+- Check file permissions on data directory
+- Verify SQLite is not locked by another process
 
 ## 📝 License
 

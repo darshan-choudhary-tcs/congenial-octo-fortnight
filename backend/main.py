@@ -3,13 +3,17 @@ FastAPI Backend for RAG & Multi-Agent Application
 Main entry point for the application
 """
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from starlette.middleware.base import BaseHTTPMiddleware
+from jose import jwt, JWTError
 import uvicorn
+from loguru import logger
 
 from app.api.v1 import auth, chat, documents, agents, admin, explainability, utilities, metering, council, prompts
-from app.database.db import init_db, get_db
+from app.database.db import init_db, get_db, get_primary_db, set_user_db_context, clear_user_db_context
+from app.database.models import User
 from app.config import settings
 
 tiktoken_cache_dir = r"token"
@@ -30,6 +34,61 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+
+class DatabaseContextMiddleware(BaseHTTPMiddleware):
+    """Middleware to set database context based on authenticated user"""
+
+    async def dispatch(self, request: Request, call_next):
+        # Clear any existing context
+        clear_user_db_context()
+
+        # Extract token from Authorization header
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "")
+            try:
+                # Decode token to get user info
+                payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                username: str = payload.get("sub")
+
+                if username:
+                    # Get user from primary database - use proper context manager
+                    db_gen = get_primary_db()
+                    db = next(db_gen)
+                    try:
+                        user = db.query(User).filter(User.username == username).first()
+
+                        if user:
+                            # Set database context for non-super-admins
+                            if not user.is_superuser and user.company_database_name:
+                                set_user_db_context(user.company_database_name)
+                                logger.info(f"[MIDDLEWARE] Set DB context for {username}: {user.company_database_name}")
+                            else:
+                                logger.info(f"[MIDDLEWARE] User {username} using primary DB (superuser={user.is_superuser})")
+                    finally:
+                        # Properly close the generator to ensure session cleanup
+                        try:
+                            next(db_gen)
+                        except StopIteration:
+                            pass
+            except JWTError as e:
+                logger.debug(f"[MIDDLEWARE] JWT decode error (not critical): {e}")
+                pass
+            except Exception as e:
+                logger.error(f"[MIDDLEWARE] Error setting DB context: {e}")
+                pass
+
+        response = await call_next(request)
+
+        # Clear context after request
+        clear_user_db_context()
+
+        return response
+
+
+# Add database context middleware BEFORE CORS
+app.add_middleware(DatabaseContextMiddleware)
 
 # CORS middleware
 app.add_middleware(

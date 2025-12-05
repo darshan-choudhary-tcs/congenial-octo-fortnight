@@ -167,8 +167,8 @@ export default function AdminPage() {
   })
 
   useEffect(() => {
-    // Check admin permission
-    if (currentUser && !currentUser.roles.includes('admin')) {
+    // Check admin or super_admin permission
+    if (currentUser && !currentUser.roles.includes('admin') && !currentUser.roles.includes('super_admin')) {
       showSnackbar('You do not have permission to access this page', 'error')
       router.push('/dashboard')
       return
@@ -238,12 +238,16 @@ export default function AdminPage() {
     }
   }
 
-  const getRoleBadgeColor = (role: string): 'error' | 'primary' | 'default' => {
+  const getRoleBadgeColor = (role: string): 'error' | 'primary' | 'secondary' | 'success' | 'default' => {
     switch (role) {
-      case 'admin':
+      case 'super_admin':
         return 'error'
-      case 'analyst':
+      case 'admin':
+        return 'secondary'
+      case 'authenticated_user':
         return 'primary'
+      case 'analyst':
+        return 'success'
       case 'viewer':
         return 'default'
       default:
@@ -284,7 +288,7 @@ export default function AdminPage() {
               <ThemeToggle />
               <Chip
                 icon={<ShieldIcon />}
-                label="Administrator"
+                label={currentUser?.roles.includes('super_admin') ? 'Super Administrator' : 'Administrator'}
                 color="error"
                 size="small"
               />
@@ -445,13 +449,25 @@ export default function AdminPage() {
                     Manage user accounts and permissions
                   </Typography>
                 </Box>
-                <Button
-                  variant="contained"
-                  startIcon={<UserPlusIcon />}
-                  onClick={() => setShowCreateUser(!showCreateUser)}
-                >
-                  Create User
-                </Button>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  {currentUser?.roles.includes('super_admin') && (
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      startIcon={<ShieldIcon />}
+                      onClick={() => router.push('/dashboard/admin/onboard')}
+                    >
+                      Onboard Admin
+                    </Button>
+                  )}
+                  <Button
+                    variant="contained"
+                    startIcon={<UserPlusIcon />}
+                    onClick={() => setShowCreateUser(!showCreateUser)}
+                  >
+                    Create User
+                  </Button>
+                </Box>
               </Box>
               <Box sx={{ p: 3 }}>
                 {/* Create User Form */}

@@ -35,8 +35,14 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await login(username, password)
-      router.push('/dashboard')
+      const result = await login(username, password)
+
+      // Check if admin needs to complete setup
+      if (result.requiresSetup) {
+        router.push('/auth/setup')
+      } else {
+        router.push('/dashboard')
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Login failed')
     } finally {
@@ -70,7 +76,7 @@ export default function LoginPage() {
                 WebkitTextFillColor: 'transparent'
               }}
             >
-              AI RAG Platform
+              AERO: AI for Energy Resource Optimization
             </Typography>
           </Box>
           <Stack direction="row" spacing={2} alignItems="center">
@@ -132,24 +138,6 @@ export default function LoginPage() {
                     disabled={loading}
                     autoComplete="current-password"
                   />
-
-                  <Paper
-                    variant="outlined"
-                    sx={{ p: 2, bgcolor: 'action.hover' }}
-                  >
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                      Demo Accounts:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                      Admin: admin / admin123
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                      Analyst: analyst1 / analyst123
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                      Viewer: viewer1 / viewer123
-                    </Typography>
-                  </Paper>
 
                   <Button
                     type="submit"

@@ -6,11 +6,20 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from loguru import logger
+import secrets
+import string
 
-from app.database.db import get_db
+from app.database.db import get_db, get_primary_db
 from app.database.models import User, Role, Permission
-from app.auth.security import require_role, get_password_hash, format_user_response
-from app.auth.schemas import UserResponse, RoleResponse
+from app.auth.security import (
+    require_role,
+    require_super_admin,
+    require_admin_or_super_admin,
+    get_password_hash,
+    generate_secure_password,
+    format_user_response
+)
+from app.auth.schemas import UserResponse, RoleResponse, AdminOnboardRequest, AdminOnboardResponse
 
 router = APIRouter()
 
@@ -19,20 +28,83 @@ class UserCreateAdmin(BaseModel):
     email: EmailStr
     password: str
     full_name: Optional[str] = None
+    company: Optional[str] = None
     roles: List[str] = []
 
 class UserUpdateAdmin(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
+    company: Optional[str] = None
     is_active: Optional[bool] = None
     roles: Optional[List[str]] = None
 
+@router.post("/onboard-admin", response_model=AdminOnboardResponse, status_code=status.HTTP_201_CREATED)
+async def onboard_admin(
+    onboard_data: AdminOnboardRequest,
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_primary_db)
+):
+    """
+    Onboard a new admin user (super_admin only)
+
+    Creates a new admin with auto-generated password.
+    Only accessible by super admin users.
+    """
+
+    # Check if email already exists
+    if db.query(User).filter(User.email == onboard_data.email).first():
+        raise HTTPException(status_code=400, detail="Email already exists")
+
+    # Generate username from email (before @ symbol) and ensure it's unique
+    base_username = onboard_data.email.split('@')[0].lower()
+    username = base_username
+    counter = 1
+    while db.query(User).filter(User.username == username).first():
+        username = f"{base_username}{counter}"
+        counter += 1
+
+    # Generate secure password
+    auto_generated_password = generate_secure_password(16)
+
+    # Get admin role
+    admin_role = db.query(Role).filter(Role.name == "admin").first()
+    if not admin_role:
+        raise HTTPException(status_code=500, detail="Admin role not found in system")
+
+    # Create admin user
+    new_admin = User(
+        username=username,
+        email=onboard_data.email,
+        full_name=onboard_data.name,
+        company=onboard_data.company,
+        hashed_password=get_password_hash(auto_generated_password),
+        is_active=True
+    )
+    new_admin.roles.append(admin_role)
+
+    db.add(new_admin)
+    db.commit()
+    db.refresh(new_admin)
+
+    logger.info(f"New admin user onboarded: {username} by super_admin: {current_user.username}")
+
+    return AdminOnboardResponse(
+        id=new_admin.id,
+        username=username,
+        email=new_admin.email,
+        name=new_admin.full_name,
+        company=new_admin.company,
+        password=auto_generated_password,
+        roles=[role.name for role in new_admin.roles],
+        message="Admin user created successfully. Please save the password securely."
+    )
+
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin_or_super_admin),
     db: Session = Depends(get_db)
 ):
-    """List all users (admin only)"""
+    """List all users (admin or super_admin only)"""
 
     users = db.query(User).all()
 
@@ -51,10 +123,10 @@ async def list_users(
 @router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin_or_super_admin),
     db: Session = Depends(get_db)
 ):
-    """Get a specific user by ID (admin only)"""
+    """Get a specific user by ID (admin or super_admin only)"""
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -71,10 +143,10 @@ async def get_user(
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user_admin(
     user_data: UserCreateAdmin,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin_or_super_admin),
     db: Session = Depends(get_db)
 ):
-    """Create a new user (admin only)"""
+    """Create a new user (admin or super_admin only)"""
 
     # Check duplicates
     if db.query(User).filter(User.username == user_data.username).first():
@@ -88,6 +160,7 @@ async def create_user_admin(
         username=user_data.username,
         email=user_data.email,
         full_name=user_data.full_name,
+        company=user_data.company,
         hashed_password=get_password_hash(user_data.password),
         is_active=True
     )
@@ -114,10 +187,10 @@ async def create_user_admin(
 async def update_user_admin(
     user_id: int,
     user_update: UserUpdateAdmin,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin_or_super_admin),
     db: Session = Depends(get_db)
 ):
-    """Update a user (admin only)"""
+    """Update a user (admin or super_admin only)"""
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -127,6 +200,8 @@ async def update_user_admin(
         user.email = user_update.email
     if user_update.full_name is not None:
         user.full_name = user_update.full_name
+    if user_update.company is not None:
+        user.company = user_update.company
     if user_update.is_active is not None:
         user.is_active = user_update.is_active
 
@@ -151,10 +226,10 @@ async def update_user_admin(
 @router.delete("/users/{user_id}")
 async def delete_user(
     user_id: int,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    """Delete a user (admin only)"""
+    """Delete a user (super_admin only)"""
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -170,10 +245,10 @@ async def delete_user(
 
 @router.get("/roles", response_model=List[RoleResponse])
 async def list_roles(
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin_or_super_admin),
     db: Session = Depends(get_db)
 ):
-    """List all roles (admin only)"""
+    """List all roles (admin or super_admin only)"""
 
     roles = db.query(Role).all()
 
@@ -189,10 +264,10 @@ async def list_roles(
 
 @router.get("/stats")
 async def get_system_stats(
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin_or_super_admin),
     db: Session = Depends(get_db)
 ):
-    """Get system statistics (admin only)"""
+    """Get system statistics (admin or super_admin only)"""
 
     from app.database.models import Document, Conversation, Message, AgentLog, TokenUsage
     from sqlalchemy import func
@@ -261,9 +336,9 @@ def mask_api_key(key: str) -> str:
 
 @router.get("/llm-config")
 async def get_llm_config(
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_admin_or_super_admin)
 ):
-    """Get LLM and Vision configuration (admin only) with sensitive values masked"""
+    """Get LLM and Vision configuration (admin or super_admin only) with sensitive values masked"""
 
     from app.config import settings
     from app.services.llm_service import llm_service
