@@ -748,7 +748,7 @@ class EnergyAvailabilityAgent(BaseAgent):
             query = f"""
             Analyze renewable energy availability for {profile.location} in the {profile.industry} industry.
             Consider historical consumption patterns, weather data, and regional renewable energy potential.
-            Focus on solar, wind, hydro, and biomass options with their capacity and reliability.
+            Focus on solar, wind, and hydro options with their capacity and reliability.
             """
 
             retrieval_result = await rag_retriever.retrieve_with_metadata_filter(
@@ -907,7 +907,7 @@ class PriceOptimizationAgent(BaseAgent):
             query = f"""
             Provide pricing information for renewable energy sources in {profile.location}.
             Include cost per kWh, installation costs, maintenance costs, and market trends
-            for solar, wind, hydro, and biomass energy.
+            for solar, wind, and hydro energy.
             """
 
             retrieval_result = await rag_retriever.retrieve_with_metadata_filter(
@@ -1214,7 +1214,7 @@ class EnergyPortfolioMixAgent(BaseAgent):
         years_to_target = max(1, target_year - current_year)
 
         current_renewable = sum(item.get('percentage', 0) for item in optimized_mix
-                               if item.get('source') in ['Solar', 'Wind', 'Hydro', 'Biomass'])
+                               if item.get('source') in ['Solar', 'Wind', 'Hydro'])
 
         increment_per_year = (target_percentage - current_renewable) / years_to_target
 

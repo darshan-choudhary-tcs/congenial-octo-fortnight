@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { reportsAPI } from '@/lib/api'
+import { reportsAPI, authAPI } from '@/lib/api'
 import { useSnackbar } from '@/components/SnackbarProvider'
 import { useRouter } from 'next/navigation'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -32,6 +32,8 @@ import {
   Stack,
   TextField,
   InputAdornment,
+  Menu,
+  MenuItem,
 } from '@mui/material'
 import {
   Home as HomeIcon,
@@ -41,6 +43,9 @@ import {
   Visibility as VisibilityIcon,
   Search as SearchIcon,
   Chat as ChatIcon,
+  Logout as LogOutIcon,
+  Settings as SettingsIcon,
+  Key as KeyIcon,
 } from '@mui/icons-material'
 
 interface SavedReportSummary {
@@ -68,6 +73,11 @@ export default function SavedReportsPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [viewDialog, setViewDialog] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [settingsAnchor, setSettingsAnchor] = useState<null | HTMLElement>(null)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   useEffect(() => {
     loadReports()
@@ -146,6 +156,34 @@ export default function SavedReportsPage() {
     return 'Low'
   }
 
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      showSnackbar('Please fill in all fields', 'warning')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      showSnackbar('New password must be at least 6 characters', 'warning')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      showSnackbar('New passwords do not match', 'warning')
+      return
+    }
+
+    try {
+      await authAPI.changePassword(oldPassword, newPassword)
+      showSnackbar('Password changed successfully', 'success')
+      setShowPasswordDialog(false)
+      setOldPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (error: any) {
+      showSnackbar(error.response?.data?.detail || 'Failed to change password', 'error')
+    }
+  }
+
   const filteredReports = reports.filter(report => {
     const searchLower = searchTerm.toLowerCase()
     return (
@@ -162,13 +200,6 @@ export default function SavedReportsPage() {
         <Container maxWidth="xl">
           <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Button
-                variant="text"
-                startIcon={<HomeIcon />}
-                onClick={() => router.push('/dashboard')}
-              >
-                Dashboard
-              </Button>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <AssessmentIcon color="primary" />
                 <Typography variant="h5" fontWeight="bold">
@@ -177,7 +208,44 @@ export default function SavedReportsPage() {
               </Box>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {user?.full_name || user?.username}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                  {user?.roles.join(', ')}
+                </Typography>
+              </Box>
               <ThemeToggle />
+              <IconButton
+                size="small"
+                onClick={(e) => setSettingsAnchor(e.currentTarget)}
+              >
+                <SettingsIcon />
+              </IconButton>
+              <Menu
+                anchorEl={settingsAnchor}
+                open={Boolean(settingsAnchor)}
+                onClose={() => setSettingsAnchor(null)}
+              >
+                <MenuItem
+                  onClick={() => {
+                    setSettingsAnchor(null)
+                    setShowPasswordDialog(true)
+                  }}
+                >
+                  <KeyIcon sx={{ mr: 1, fontSize: 20 }} />
+                  Change Password
+                </MenuItem>
+              </Menu>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LogOutIcon />}
+                onClick={logout}
+              >
+                Logout
+              </Button>
             </Box>
           </Box>
         </Container>
@@ -504,6 +572,41 @@ export default function SavedReportsPage() {
               Export PDF
             </Button>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Password Change Dialog */}
+      <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)}>
+        <DialogTitle>Change Password</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            type="password"
+            label="Current Password"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            type="password"
+            label="New Password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            type="password"
+            label="Confirm New Password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            margin="normal"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
+          <Button onClick={handleChangePassword} variant="contained">Change Password</Button>
         </DialogActions>
       </Dialog>
     </Box>

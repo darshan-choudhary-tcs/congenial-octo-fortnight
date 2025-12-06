@@ -15,7 +15,7 @@ from app.database.models import Base
 def get_default_report_config():
     """Returns default report configuration"""
     return {
-        "energy_weights": {"solar": 0.30, "wind": 0.25, "hydro": 0.25, "biomass": 0.20},
+        "energy_weights": {"solar": 0.35, "wind": 0.35, "hydro": 0.30},
         "price_optimization_weights": {"cost": 0.35, "reliability": 0.35, "sustainability": 0.30},
         "portfolio_decision_weights": {"esg_score": 0.40, "budget_fit": 0.35, "technical_feasibility": 0.25},
         "confidence_threshold": 0.7,

@@ -234,8 +234,7 @@ const ReportConfigPanel: React.FC<ReportConfigPanelProps> = ({
               {
                 solar: 'Preference for solar energy in the portfolio',
                 wind: 'Preference for wind energy in the portfolio',
-                hydro: 'Preference for hydroelectric energy in the portfolio',
-                biomass: 'Preference for biomass energy in the portfolio'
+                hydro: 'Preference for hydroelectric energy in the portfolio'
               }
             )}
 

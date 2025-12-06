@@ -301,7 +301,7 @@ class Profile(Base):
     # Report Configuration (JSON)
     # Stores configurable parameters for energy report generation
     # Schema: {
-    #   energy_weights: {solar, wind, hydro, biomass},
+    #   energy_weights: {solar, wind, hydro},
     #   price_optimization_weights: {cost, reliability, sustainability},
     #   portfolio_decision_weights: {esg_score, budget_fit, technical_feasibility},
     #   confidence_threshold, enable_fallback_options, max_renewable_sources

@@ -43,7 +43,7 @@ export default function LandingPage() {
     {
       icon: ZapIcon,
       title: 'Location-Based Renewable Analysis',
-      description: 'Get tailored recommendations for solar, wind, hydro, and biomass based on your location and industry-specific energy needs.',
+      description: 'Get tailored recommendations for solar, wind, and hydro based on your location and industry-specific energy needs.',
       color: 'primary.main',
     },
     {
@@ -82,7 +82,7 @@ export default function LandingPage() {
     {
       icon: ZapIcon,
       title: 'Renewable Energy Planning',
-      description: 'Determine the optimal mix of solar, wind, hydro, and biomass for your facility based on location and budget.',
+      description: 'Determine the optimal mix of solar, wind and hydro for your facility based on location and budget.',
     },
     {
       icon: TargetIcon,

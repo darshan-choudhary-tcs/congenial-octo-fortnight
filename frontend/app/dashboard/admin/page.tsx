@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { adminAPI } from '@/lib/api'
+import { adminAPI, authAPI } from '@/lib/api'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useSnackbar } from '@/components/SnackbarProvider'
 import { formatDate } from '@/lib/utils'
@@ -37,6 +37,7 @@ import {
   Tabs,
   Tab,
   CircularProgress,
+  Menu,
 } from '@mui/material'
 import {
   People as UsersIcon,
@@ -51,6 +52,7 @@ import {
   AttachMoney as DollarSignIcon,
   FlashOn as ZapIcon,
   Key as KeyIcon,
+  Logout as LogOutIcon,
 } from '@mui/icons-material'
 
 interface User {
@@ -148,7 +150,7 @@ interface LLMConfig {
 }
 
 export default function AdminPage() {
-  const { user: currentUser } = useAuth()
+  const { user: currentUser, logout } = useAuth()
   const { showSnackbar } = useSnackbar()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -163,6 +165,11 @@ export default function AdminPage() {
   const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null)
   const [resetPasswordUsername, setResetPasswordUsername] = useState<string>('')
   const [newPassword, setNewPassword] = useState('')
+  const [settingsAnchor, setSettingsAnchor] = useState<null | HTMLElement>(null)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPasswordSelf, setNewPasswordSelf] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -284,6 +291,34 @@ export default function AdminPage() {
     }
   }
 
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPasswordSelf || !confirmPassword) {
+      showSnackbar('Please fill in all fields', 'warning')
+      return
+    }
+
+    if (newPasswordSelf.length < 6) {
+      showSnackbar('New password must be at least 6 characters', 'warning')
+      return
+    }
+
+    if (newPasswordSelf !== confirmPassword) {
+      showSnackbar('New passwords do not match', 'warning')
+      return
+    }
+
+    try {
+      await authAPI.changePassword(oldPassword, newPasswordSelf)
+      showSnackbar('Password changed successfully', 'success')
+      setShowPasswordDialog(false)
+      setOldPassword('')
+      setNewPasswordSelf('')
+      setConfirmPassword('')
+    } catch (error: any) {
+      showSnackbar(error.response?.data?.detail || 'Failed to change password', 'error')
+    }
+  }
+
   const getRoleBadgeColor = (role: string): 'error' | 'primary' | 'secondary' | 'success' | 'default' => {
     switch (role) {
       case 'super_admin':
@@ -316,13 +351,6 @@ export default function AdminPage() {
         <Container maxWidth="xl">
           <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Button
-                variant="text"
-                startIcon={<HomeIcon />}
-                onClick={() => router.push('/dashboard')}
-              >
-                Dashboard
-              </Button>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <SettingsIcon color="primary" />
                 <Typography variant="h5" fontWeight="bold">
@@ -331,13 +359,44 @@ export default function AdminPage() {
               </Box>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {currentUser?.full_name || currentUser?.username}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                  {currentUser?.roles.join(', ')}
+                </Typography>
+              </Box>
               <ThemeToggle />
-              <Chip
-                icon={<ShieldIcon />}
-                label={currentUser?.roles.includes('super_admin') ? 'Super Administrator' : 'Administrator'}
-                color="error"
+              <IconButton
                 size="small"
-              />
+                onClick={(e) => setSettingsAnchor(e.currentTarget)}
+              >
+                <SettingsIcon />
+              </IconButton>
+              <Menu
+                anchorEl={settingsAnchor}
+                open={Boolean(settingsAnchor)}
+                onClose={() => setSettingsAnchor(null)}
+              >
+                <MenuItem
+                  onClick={() => {
+                    setSettingsAnchor(null)
+                    setShowPasswordDialog(true)
+                  }}
+                >
+                  <KeyIcon sx={{ mr: 1, fontSize: 20 }} />
+                  Change Password
+                </MenuItem>
+              </Menu>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LogOutIcon />}
+                onClick={logout}
+              >
+                Logout
+              </Button>
             </Box>
           </Box>
         </Container>
@@ -1292,6 +1351,41 @@ export default function AdminPage() {
           >
             Reset Password
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Password Change Dialog */}
+      <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)}>
+        <DialogTitle>Change Password</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            type="password"
+            label="Current Password"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            type="password"
+            label="New Password"
+            value={newPasswordSelf}
+            onChange={(e) => setNewPasswordSelf(e.target.value)}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            type="password"
+            label="Confirm New Password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            margin="normal"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
+          <Button onClick={handleChangePassword} variant="contained">Change Password</Button>
         </DialogActions>
       </Dialog>
     </Box>

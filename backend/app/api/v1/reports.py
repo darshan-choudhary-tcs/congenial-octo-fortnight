@@ -35,7 +35,7 @@ class ReportConfigUpdate(BaseModel):
     """Model for updating report configuration"""
     energy_weights: Dict[str, float] = Field(
         ...,
-        description="Weights for renewable energy sources (solar, wind, hydro, biomass)"
+        description="Weights for renewable energy sources (solar, wind, hydro)"
     )
     price_optimization_weights: Dict[str, float] = Field(
         ...,
@@ -104,10 +104,9 @@ async def get_report_config(
         # Default configuration
         default_config = {
             "energy_weights": {
-                "solar": 0.30,
-                "wind": 0.25,
-                "hydro": 0.25,
-                "biomass": 0.20
+                "solar": 0.35,
+                "wind": 0.35,
+                "hydro": 0.30
             },
             "price_optimization_weights": {
                 "cost": 0.35,

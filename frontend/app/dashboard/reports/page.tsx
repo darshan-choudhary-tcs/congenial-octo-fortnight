@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { reportsAPI } from '@/lib/api'
+import { reportsAPI, authAPI } from '@/lib/api'
 import { useSnackbar } from '@/components/SnackbarProvider'
 import ReportConfigPanel from '@/components/ReportConfigPanel'
 import { useRouter } from 'next/navigation'
@@ -36,6 +36,13 @@ import {
   IconButton,
   Tooltip as MuiTooltip,
   Stack,
+  Menu,
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material'
 import {
   Assessment as AssessmentIcon,
@@ -46,13 +53,14 @@ import {
   WbSunny as SolarIcon,
   Air as WindIcon,
   Water as HydroIcon,
-  Grass as BiomassIcon,
   TrendingUp as TrendingUpIcon,
   MonetizationOn as MoneyIcon,
   Recycling as EcoIcon,
   Logout as LogOutIcon,
   Save as SaveIcon,
   Download as DownloadIcon,
+  Settings as SettingsIcon,
+  Key as KeyIcon,
 } from '@mui/icons-material'
 import {
   PieChart,
@@ -74,7 +82,6 @@ const ENERGY_COLORS = {
   solar: '#f59e0b',
   wind: '#0ea5e9',
   hydro: '#10b981',
-  biomass: '#84cc16',
 }
 
 const CONFIDENCE_COLORS = {
@@ -216,6 +223,11 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false)
   const [exportingClientside, setExportingClientside] = useState(false)
   const [savedReportId, setSavedReportId] = useState<number | null>(null)
+  const [settingsAnchor, setSettingsAnchor] = useState<null | HTMLElement>(null)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   const agentSteps = [
     'Energy Availability Analysis',
@@ -259,6 +271,34 @@ export default function ReportsPage() {
   const handleResetConfig = async () => {
     await loadConfig()
     showSnackbar('Configuration reset to defaults', 'info')
+  }
+
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      showSnackbar('Please fill in all fields', 'warning')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      showSnackbar('New password must be at least 6 characters', 'warning')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      showSnackbar('New passwords do not match', 'warning')
+      return
+    }
+
+    try {
+      await authAPI.changePassword(oldPassword, newPassword)
+      showSnackbar('Password changed successfully', 'success')
+      setShowPasswordDialog(false)
+      setOldPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (error: any) {
+      showSnackbar(error.response?.data?.detail || 'Failed to change password', 'error')
+    }
   }
 
   const generateReport = async () => {
@@ -516,13 +556,6 @@ export default function ReportsPage() {
         <Container maxWidth="xl">
           <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Button
-                variant="text"
-                startIcon={<HomeIcon />}
-                onClick={() => router.push('/dashboard')}
-              >
-                Dashboard
-              </Button>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <AssessmentIcon color="primary" />
                 <Typography variant="h5" fontWeight="bold">
@@ -531,12 +564,44 @@ export default function ReportsPage() {
               </Box>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {user?.full_name || user?.username}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                  {user?.roles.join(', ')}
+                </Typography>
+              </Box>
               <ThemeToggle />
-              <Chip
-                label={user?.full_name || user?.username}
-                color="primary"
+              <IconButton
                 size="small"
-              />
+                onClick={(e) => setSettingsAnchor(e.currentTarget)}
+              >
+                <SettingsIcon />
+              </IconButton>
+              <Menu
+                anchorEl={settingsAnchor}
+                open={Boolean(settingsAnchor)}
+                onClose={() => setSettingsAnchor(null)}
+              >
+                <MenuItem
+                  onClick={() => {
+                    setSettingsAnchor(null)
+                    setShowPasswordDialog(true)
+                  }}
+                >
+                  <KeyIcon sx={{ mr: 1, fontSize: 20 }} />
+                  Change Password
+                </MenuItem>
+              </Menu>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LogOutIcon />}
+                onClick={logout}
+              >
+                Logout
+              </Button>
             </Box>
           </Box>
         </Container>
@@ -1120,6 +1185,41 @@ export default function ReportsPage() {
           </>
         )}
       </Container>
+
+      {/* Password Change Dialog */}
+      <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)}>
+        <DialogTitle>Change Password</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            type="password"
+            label="Current Password"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            type="password"
+            label="New Password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            type="password"
+            label="Confirm New Password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            margin="normal"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
+          <Button onClick={handleChangePassword} variant="contained">Change Password</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

@@ -18,10 +18,9 @@ def get_default_report_config():
     """Returns default report configuration with balanced weights"""
     return {
         "energy_weights": {
-            "solar": 0.30,
-            "wind": 0.25,
-            "hydro": 0.25,
-            "biomass": 0.20
+            "solar": 0.35,
+            "wind": 0.35,
+            "hydro": 0.30
         },
         "price_optimization_weights": {
             "cost": 0.35,

@@ -228,7 +228,7 @@ Evaluate queries with a skeptical, quality-focused mindset.""",
         "template": """You are an expert renewable energy analyst specializing in location-based energy resource assessment.
 
 Your expertise includes:
-- Evaluating solar, wind, hydro, and biomass energy potential based on geographic and climate data
+- Evaluating solar, wind, and hydro energy potential based on geographic and climate data
 - Analyzing historical weather patterns and renewable energy generation data
 - Assessing industry-specific energy requirements and consumption patterns
 - Understanding regional infrastructure and grid connectivity
