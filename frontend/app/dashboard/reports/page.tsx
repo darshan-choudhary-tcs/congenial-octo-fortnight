@@ -61,6 +61,7 @@ import {
   Download as DownloadIcon,
   Settings as SettingsIcon,
   Key as KeyIcon,
+  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material'
 import {
   PieChart,
@@ -556,6 +557,13 @@ export default function ReportsPage() {
         <Container maxWidth="xl">
           <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton
+                onClick={() => router.push('/dashboard')}
+                size="small"
+                sx={{ mr: 1 }}
+              >
+                <ArrowBackIcon />
+              </IconButton>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <AssessmentIcon color="primary" />
                 <Typography variant="h5" fontWeight="bold">

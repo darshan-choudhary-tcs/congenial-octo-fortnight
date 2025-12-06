@@ -53,6 +53,7 @@ import {
   FlashOn as ZapIcon,
   Key as KeyIcon,
   Logout as LogOutIcon,
+  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material'
 
 interface User {
@@ -351,6 +352,13 @@ export default function AdminPage() {
         <Container maxWidth="xl">
           <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton
+                onClick={() => router.push('/dashboard')}
+                size="small"
+                sx={{ mr: 1 }}
+              >
+                <ArrowBackIcon />
+              </IconButton>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <SettingsIcon color="primary" />
                 <Typography variant="h5" fontWeight="bold">
