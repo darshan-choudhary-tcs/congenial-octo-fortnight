@@ -15,6 +15,7 @@ export default function SetupLoader() {
     { label: 'Creating your company database...', completed: false },
     { label: 'Setting up your environment...', completed: false },
     { label: 'Initializing data structures...', completed: false },
+    { label: 'Setting up your knowledge base...', completed: false },
     { label: 'Finalizing setup...', completed: false },
   ])
 

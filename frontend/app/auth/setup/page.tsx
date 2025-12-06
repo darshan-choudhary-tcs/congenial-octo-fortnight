@@ -67,6 +67,7 @@ export default function SetupPage() {
       }
     } else if (step === 2) {
       if (budget <= 0) newErrors.budget = 'Budget must be greater than 0'
+      if (!csvFile) newErrors.csvFile = 'Historical data CSV file is required'
     }
 
     setErrors(newErrors)
@@ -114,6 +115,8 @@ export default function SetupPage() {
 
       if (csvFile) {
         formData.append('historical_data', csvFile)
+      } else {
+        throw new Error('Historical data file is required')
       }
 
       await authAPI.completeSetup(formData)
@@ -297,7 +300,7 @@ export default function SetupPage() {
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="subtitle1" gutterBottom fontWeight={600}>
-                    Historical Data (Optional)
+                    Historical Data *
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Upload a CSV file with your historical energy consumption data

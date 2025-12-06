@@ -8,7 +8,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import DocumentSelectionModal from '@/components/DocumentSelectionModal'
 import { formatDate, getConfidenceColor, getConfidenceLabel } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Box,
   Button,
@@ -71,6 +71,7 @@ import {
   Refresh as RefreshIcon,
   FilterList as FilterListIcon,
   Info as InfoIcon,
+  Assessment as AssessmentIcon,
 } from '@mui/icons-material'
 
 interface Message {
@@ -170,6 +171,7 @@ export default function ChatPage() {
   const { user } = useAuth()
   const { showSnackbar } = useSnackbar()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [currentConversation, setCurrentConversation] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -195,6 +197,9 @@ export default function ChatPage() {
   const [unavailableDocsIds, setUnavailableDocsIds] = useState<string[]>([])
   const [loadingDirectLLM, setLoadingDirectLLM] = useState<string | null>(null)
 
+  // Report filtering states
+  const [reportFilter, setReportFilter] = useState<{id: string, name: string} | null>(null)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -202,6 +207,14 @@ export default function ChatPage() {
   useEffect(() => {
     loadConversations()
     loadAvailableDocuments()
+
+    // Check for report filter in URL params
+    const reportId = searchParams.get('report_id')
+    const reportName = searchParams.get('report_name')
+    if (reportId && reportName) {
+      setReportFilter({ id: reportId, name: decodeURIComponent(reportName) })
+      showSnackbar(`Chat scoped to report: ${decodeURIComponent(reportName)}`, 'info')
+    }
   }, [])
 
   useEffect(() => {
@@ -298,6 +311,11 @@ export default function ChatPage() {
       const token = localStorage.getItem('token')
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+      // Prepare document filter for report scoping
+      const documentFilter = reportFilter
+        ? { report_id: reportFilter.id }
+        : (selectedDocumentIds.length > 0 ? { document_ids: selectedDocumentIds } : undefined)
+
       const response = await fetch(`${API_URL}/api/v1/chat/message/stream`, {
         method: 'POST',
         headers: {
@@ -311,6 +329,7 @@ export default function ChatPage() {
           provider,
           include_grounding: includeGrounding,
           selected_document_ids: selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined,
+          document_filter: documentFilter,
         }),
         signal: abortControllerRef.current.signal,
       })
@@ -590,9 +609,21 @@ export default function ChatPage() {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <MessageSquareIcon color="primary" />
                 <Typography variant="h5" fontWeight="bold">
-                  RAG Chat
+                  Talk to Your Docs
                 </Typography>
               </Box>
+              {reportFilter && (
+                <Chip
+                  icon={<AssessmentIcon />}
+                  label={`Scoped to: ${reportFilter.name}`}
+                  color="info"
+                  onDelete={() => {
+                    setReportFilter(null)
+                    router.push('/dashboard/chat')
+                  }}
+                  sx={{ ml: 2 }}
+                />
+              )}
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <FormControl size="small" sx={{ minWidth: 140 }}>

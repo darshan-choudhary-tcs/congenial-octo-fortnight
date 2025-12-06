@@ -326,6 +326,7 @@ export default function ReportsPage() {
         overall_confidence: report.overall_confidence,
         execution_time: report.execution_time,
         total_tokens: totalTokens,
+        provider: user?.preferred_llm || 'custom',
       })
 
       setSavedReportId(response.data.report_id)

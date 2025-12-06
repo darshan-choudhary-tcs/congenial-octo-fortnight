@@ -13,6 +13,7 @@ from app.database.db import get_db
 from app.database.models import User, Profile
 from app.auth.security import get_current_active_user, require_permission
 from app.agents.orchestrator import orchestrator
+from app.services.report_indexing_service import report_indexing_service
 
 router = APIRouter()
 
@@ -456,6 +457,7 @@ class SaveReportRequest(BaseModel):
     overall_confidence: float
     execution_time: float
     total_tokens: int = 0
+    provider: Optional[str] = "custom"  # LLM provider for RAG indexing
 
 
 class SavedReportSummary(BaseModel):
@@ -524,6 +526,24 @@ async def save_report(
         db.refresh(saved_report)
 
         logger.info(f"Report saved successfully: ID={saved_report.id}, User={company_user.username}")
+
+        # Index report content into RAG for conversational queries
+        try:
+            indexing_success = await report_indexing_service.index_report(
+                report_id=saved_report.id,
+                report_name=request.report_name or f"Report {saved_report.id}",
+                report_content=request.report_content,
+                profile_snapshot=request.profile_snapshot,
+                user_id=company_user.id,
+                provider=request.provider
+            )
+            if indexing_success:
+                logger.info(f"Report {saved_report.id} indexed successfully for RAG")
+            else:
+                logger.warning(f"Report {saved_report.id} saved but indexing failed")
+        except Exception as index_error:
+            logger.error(f"Failed to index report {saved_report.id}: {index_error}")
+            # Don't fail the save operation if indexing fails
 
         return {
             "success": True,
@@ -684,6 +704,18 @@ async def delete_saved_report(
         db.commit()
 
         logger.info(f"Report deleted: ID={report_id}, User={company_user.username}")
+
+        # Remove report from RAG index
+        try:
+            await report_indexing_service.remove_report_from_index(
+                report_id=report_id,
+                user_id=company_user.id,
+                provider="custom"  # Try both providers if needed
+            )
+            logger.info(f"Report {report_id} removed from RAG index")
+        except Exception as index_error:
+            logger.error(f"Failed to remove report {report_id} from index: {index_error}")
+            # Don't fail the delete operation if index removal fails
 
         return None
 

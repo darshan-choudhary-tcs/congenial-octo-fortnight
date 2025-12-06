@@ -40,6 +40,7 @@ import {
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
   Search as SearchIcon,
+  Chat as ChatIcon,
 } from '@mui/icons-material'
 
 interface SavedReportSummary {
@@ -331,6 +332,14 @@ export default function SavedReportsPage() {
                             title="View Details"
                           >
                             <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="success"
+                            onClick={() => router.push(`/dashboard/chat?report_id=${report.id}&report_name=${encodeURIComponent(report.report_name || `Report ${report.id}`)}`)}
+                            title="Talk to data"
+                          >
+                            <ChatIcon fontSize="small" />
                           </IconButton>
                           <IconButton
                             size="small"

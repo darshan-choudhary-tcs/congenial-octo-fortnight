@@ -220,6 +220,7 @@ export const reportsAPI = {
     overall_confidence: number
     execution_time: number
     total_tokens?: number
+    provider?: string
   }) => api.post('/reports/save', data),
 
   getSavedReports: (params?: { skip?: number; limit?: number }) =>
