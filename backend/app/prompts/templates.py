@@ -223,6 +223,93 @@ Evaluate queries with a skeptical, quality-focused mindset.""",
             purpose="Define critical evaluation and quality assurance approach",
             output_format="text"
         )
+    },
+    "energy_availability_analyst": {
+        "template": """You are an expert renewable energy analyst specializing in location-based energy resource assessment.
+
+Your expertise includes:
+- Evaluating solar, wind, hydro, and biomass energy potential based on geographic and climate data
+- Analyzing historical weather patterns and renewable energy generation data
+- Assessing industry-specific energy requirements and consumption patterns
+- Understanding regional infrastructure and grid connectivity
+- Estimating realistic capacity factors and generation potential
+
+When analyzing renewable energy availability:
+1. CITE ALL SOURCES: Reference every document used with [Source N] format
+2. BE SPECIFIC: Provide concrete capacity estimates in kWh when data is available
+3. ACKNOWLEDGE LIMITATIONS: Clearly state when data is incomplete or estimates are approximate
+4. GROUND IN EVIDENCE: Base all claims on retrieved documents; avoid speculation
+5. CONSIDER CONTEXT: Factor in location, industry, climate, and existing infrastructure
+6. ASSESS RELIABILITY: Note seasonal variations and reliability scores for each energy source
+
+Your analysis must be data-driven, transparent, and actionable.""",
+        "metadata": PromptMetadata(
+            name="energy_availability_analyst",
+            category="system",
+            description="System role for energy availability analysis",
+            variables=[],
+            purpose="Define role for analyzing renewable energy availability by location",
+            output_format="text"
+        )
+    },
+    "price_optimization_analyst": {
+        "template": """You are an expert in energy pricing and portfolio optimization.
+
+Your expertise includes:
+- Analyzing cost structures for renewable energy sources (CAPEX, OPEX, LCOE)
+- Evaluating price trends and market dynamics in energy markets
+- Optimizing energy mix based on cost, reliability, and sustainability goals
+- Understanding financing options and ROI calculations for renewable investments
+- Assessing grid costs, interconnection fees, and operational expenses
+
+When optimizing energy pricing:
+1. CITE PRICING DATA: Reference all cost figures with [Source N] format
+2. BUDGET ALIGNMENT: Ensure recommendations fit within specified budget constraints
+3. MULTI-FACTOR OPTIMIZATION: Balance cost, reliability, and sustainability per given weights
+4. TRANSPARENT CALCULATIONS: Show how costs are calculated and allocated
+5. ACKNOWLEDGE UNCERTAINTY: Note when prices are estimates or subject to market volatility
+6. CONSIDER TOTAL COST: Include installation, operation, maintenance, and grid connection costs
+7. QUANTIFY TRADE-OFFS: Explain cost-benefit trade-offs between different energy sources
+
+Provide evidence-based, financially sound recommendations.""",
+        "metadata": PromptMetadata(
+            name="price_optimization_analyst",
+            category="system",
+            description="System role for price optimization analysis",
+            variables=[],
+            purpose="Define role for optimizing energy mix based on pricing",
+            output_format="text"
+        )
+    },
+    "portfolio_decision_analyst": {
+        "template": """You are a strategic energy portfolio advisor focused on ESG-aligned decision making.
+
+Your expertise includes:
+- Integrating environmental, social, and governance (ESG) factors into energy decisions
+- Developing transition roadmaps to achieve net-zero targets
+- Balancing sustainability goals with technical feasibility and budget constraints
+- Assessing regulatory compliance and carbon reduction strategies
+- Creating actionable, phased implementation plans
+
+When making portfolio decisions:
+1. ESG INTEGRATION: Prioritize sustainability targets (renewable percentage, zero non-renewable year)
+2. WEIGHTED DECISION-MAKING: Apply configurable weights (ESG score, budget fit, technical feasibility)
+3. TIMELINE CLARITY: Provide year-by-year transition roadmap to achieve targets
+4. CITE RATIONALE: Reference previous analyses and sources with [Source N] format
+5. FEASIBILITY CHECK: Ensure recommendations are technically and financially achievable
+6. MEASURE PROGRESS: Define clear milestones and KPIs for tracking success
+7. ACKNOWLEDGE RISKS: Note potential challenges or barriers to implementation
+8. CONFIDENCE TRANSPARENCY: Express confidence level and reasoning behind recommendations
+
+Your decisions must align with sustainability commitments while remaining practical and achievable.""",
+        "metadata": PromptMetadata(
+            name="portfolio_decision_analyst",
+            category="system",
+            description="System role for energy portfolio decision-making",
+            variables=[],
+            purpose="Define role for making ESG-aligned portfolio decisions",
+            output_format="text"
+        )
     }
 }
 
@@ -407,6 +494,180 @@ CONFIDENCE:
             description="Prompt for council agent evaluation",
             variables=["query", "context_section", "documents_section"],
             purpose="Evaluate queries with structured response format",
+            output_format="structured_text"
+        )
+    },
+    "energy_availability_analysis": {
+        "template": """Analyze renewable energy availability for the following location and industry:
+
+LOCATION: {location}
+INDUSTRY: {industry}
+BUDGET: ₹{budget:,.0f}
+
+ENERGY SOURCE WEIGHTS (Preferences):
+{weights}
+
+RETRIEVED DOCUMENTS:
+{documents}
+
+YOUR TASK:
+Analyze the renewable energy potential for this location considering:
+1. **Solar Energy**: Assess solar irradiance, panel efficiency, rooftop/ground availability
+2. **Wind Energy**: Evaluate wind speeds, turbine suitability, seasonal patterns
+3. **Hydro Energy**: Consider water resources, hydroelectric potential, regulatory constraints
+
+CRITICAL: Each energy source has DIFFERENT characteristics. DO NOT assign the same reliability to all sources.
+- Solar: Typically 75-85% reliability (weather/daylight dependent)
+- Wind: Typically 70-80% reliability (wind pattern dependent)
+- Hydro: Typically 85-95% reliability (most predictable)
+
+For EACH viable renewable source, provide:
+- **Availability**: Yes/No with confidence level
+- **Estimated Annual Capacity**: In kWh (cite source data or use industry standards)
+- **Reliability Score**: 0-1 scale based on consistency and seasonality (MUST BE DIFFERENT for each source)
+- **Capacity Factor**: Actual output vs theoretical maximum (Solar ~24%, Wind ~38%, Hydro ~47%)
+- **Key Factors**: Geographic, climatic, or infrastructure considerations
+- **Limitations**: Data gaps, seasonal variations, infrastructure needs
+
+CITE ALL SOURCES using [Source N] format.
+Be specific with capacity numbers when data is available.
+If no specific data available, use realistic industry-standard values based on energy type.
+Acknowledge when making estimates vs. using actual data.
+
+ANALYSIS:""",
+        "metadata": PromptMetadata(
+            name="energy_availability_analysis",
+            category="agent",
+            description="Prompt for energy availability analysis agent",
+            variables=["location", "industry", "budget", "documents", "weights"],
+            purpose="Analyze location-specific renewable energy availability",
+            output_format="structured_text"
+        )
+    },
+    "price_optimization_analysis": {
+        "template": """Optimize the renewable energy mix for the following scenario:
+
+LOCATION: {location}
+ANNUAL BUDGET: ₹{budget:,.0f}
+
+AVAILABLE RENEWABLE OPTIONS:
+{renewable_options}
+
+OPTIMIZATION WEIGHTS:
+{weights}
+
+PRICING DATA FROM KNOWLEDGE BASE:
+{pricing_data}
+
+YOUR TASK:
+Create an optimized energy portfolio that maximizes value based on the weighted criteria:
+- **Cost**: Minimize total cost within budget
+- **Reliability**: Ensure consistent energy supply
+- **Sustainability**: Maximize renewable percentage
+
+Optimization weights: {weights}
+
+CRITICAL: DO NOT allocate equal percentages (33% each) unless the data truly justifies it.
+Consider real-world factors:
+- Hydro typically gets higher allocation due to reliability and low cost
+- Solar and Wind vary by location climate
+- Diversification is important but shouldn't override cost-effectiveness
+
+For EACH renewable source in the optimized mix, provide:
+- **Source Name**: (Solar/Wind/Hydro)
+- **Percentage Allocation**: % of total energy mix (MUST vary based on source characteristics)
+- **Annual Cost**: ₹ (calculated from percentage × budget)
+- **Cost per kWh**: ₹/kWh (realistic values: Solar ~₹0.043, Wind ~₹0.052, Hydro ~₹0.041)
+- **Reliability Score**: 0-1 scale (DIFFERENT for each source)
+- **Justification**: Why this allocation is optimal given the weights
+
+ENSURE:
+✓ Total annual cost ≤ ₹{budget:,.0f}
+✓ Percentages sum to 100%
+✓ All cost figures cited from [Source N] or based on industry standards
+✓ Trade-offs explained (e.g., higher cost = better reliability)
+✓ Allocations reflect weighted priorities and source characteristics
+
+OPTIMIZED PORTFOLIO:""",
+        "metadata": PromptMetadata(
+            name="price_optimization_analysis",
+            category="agent",
+            description="Prompt for price optimization agent",
+            variables=["location", "budget", "renewable_options", "pricing_data", "weights"],
+            purpose="Optimize energy mix based on cost, reliability, and sustainability",
+            output_format="structured_text"
+        )
+    },
+    "portfolio_decision_analysis": {
+        "template": """Make the final energy portfolio decision based on comprehensive analysis:
+
+COMPANY PROFILE:
+- Industry: {industry}
+- Location: {location}
+- Annual Budget: ₹{budget:,.0f}
+
+SUSTAINABILITY TARGETS (ESG):
+- KP1 (Zero Non-Renewable Year): {sustainability_target_kp1}
+- KP2 (Target Renewable %): {sustainability_target_kp2}%
+
+DECISION WEIGHTS:
+- ESG Score: {esg_weight:.0%}
+- Budget Fit: {budget_weight:.0%}
+- Technical Feasibility: {technical_weight:.0%}
+
+ENERGY AVAILABILITY ANALYSIS:
+{availability_analysis}
+
+AVAILABLE OPTIONS:
+{renewable_options}
+
+PRICE OPTIMIZATION RESULTS:
+{optimization_analysis}
+
+OPTIMIZED MIX:
+{optimized_mix}
+
+YOUR TASK:
+Make the final portfolio decision considering all factors. Provide:
+
+1. **FINAL ENERGY PORTFOLIO MIX**:
+   For each source (Solar/Wind/Hydro):
+   - Percentage allocation
+   - Annual energy (kWh)
+   - Annual cost (₹)
+
+2. **ESG ASSESSMENT**:
+   - Current renewable percentage: ___%
+   - Gap to target ({sustainability_target_kp2}%): ___%
+   - Meets sustainability targets? Yes/No
+   - Carbon reduction estimate
+
+3. **TRANSITION ROADMAP** (Year-by-Year):
+   From 2025 to {sustainability_target_kp1}:
+   - Year | Renewable % | Milestone Action
+   - Show progressive steps to reach zero non-renewable target
+
+4. **CONFIDENCE & REASONING**:
+   - Overall confidence score (0-1)
+   - Key decision factors and trade-offs
+   - Risks and mitigation strategies
+   - Why this portfolio best balances all weighted criteria
+
+5. **CITATIONS**:
+   Reference all sources used in analysis with [Source N]
+
+FINAL DECISION:""",
+        "metadata": PromptMetadata(
+            name="portfolio_decision_analysis",
+            category="agent",
+            description="Prompt for portfolio decision agent",
+            variables=[
+                "industry", "location", "budget", "sustainability_target_kp1",
+                "sustainability_target_kp2", "esg_weight", "budget_weight",
+                "technical_weight", "availability_analysis", "renewable_options",
+                "optimization_analysis", "optimized_mix"
+            ],
+            purpose="Make final ESG-aligned energy portfolio decision",
             output_format="structured_text"
         )
     }
@@ -632,6 +893,123 @@ Please provide a helpful, accurate response based on the question.""",
 }
 
 # ============================================================================
+# ENERGY METADATA PROMPTS
+# ============================================================================
+
+ENERGY_METADATA_PROMPTS = {
+    "energy_consumption_summary": {
+        "template": """Analyze this energy consumption data and provide a comprehensive summary in 200-300 words.
+
+Focus on:
+1. Renewable vs Non-Renewable Energy Mix: Calculate the percentage of renewable (solar, wind, hydro) versus non-renewable (coal) energy sources
+2. Consumption Patterns: Identify peak consumption periods, daily/monthly trends, and seasonal variations
+3. Cost Analysis: Summarize total costs, average cost per kWh, and identify any pricing anomalies or cost spikes
+4. Energy Sources: Break down the contribution of each energy source (solar, wind, hydro, coal) to total consumption
+5. Grid Provider: Note the grid provider and any provider-related patterns
+6. Data Quality: Flag any anomalies like negative values, impossible readings (e.g., solar generation at night), or missing data
+
+Data:
+{text}
+
+Summary (200-300 words):""",
+        "metadata": PromptMetadata(
+            name="energy_consumption_summary",
+            category="energy_metadata",
+            description="Comprehensive summary of energy consumption data with sustainability focus",
+            variables=["text"],
+            purpose="Generate energy-focused summaries highlighting renewable mix, consumption patterns, and costs",
+            output_format="text"
+        )
+    },
+    "energy_anomaly_detection": {
+        "template": """Analyze this energy data for anomalies and data quality issues.
+
+Identify:
+1. Negative Energy Values: Any negative consumption, generation, or cost values (physics violation)
+2. Impossible Conditions: Solar generation at night, wind generation without wind, etc.
+3. Price Outliers: Unusually high or low prices (>2x or <0.5x normal rates)
+4. Demand Spikes: Sudden consumption increases (>5000 kWh when baseline is 500-800 kWh)
+5. Missing Data: NaN, null, or missing values in critical fields
+6. Math Errors: Inconsistencies in calculations (e.g., total != sum of parts)
+
+Return as JSON array of detected anomalies with format:
+[{{"type": "anomaly_type", "description": "brief description", "severity": "high/medium/low"}}]
+
+Data:
+{text}
+
+Anomalies (JSON array only):""",
+        "metadata": PromptMetadata(
+            name="energy_anomaly_detection",
+            category="energy_metadata",
+            description="Detect data quality issues and anomalies in energy consumption data",
+            variables=["text"],
+            purpose="Identify errors, outliers, and data integrity issues for agent awareness",
+            output_format="json"
+        )
+    },
+    "sustainability_metrics_extraction": {
+        "template": """Extract key sustainability metrics from this energy consumption data.
+
+Calculate and return as JSON:
+{{
+  "total_energy_kwh": float,
+  "renewable_energy_kwh": float,
+  "non_renewable_energy_kwh": float,
+  "renewable_percentage": float,
+  "total_cost_inr": float,
+  "average_cost_per_kwh": float,
+  "solar_kwh": float,
+  "wind_kwh": float,
+  "hydro_kwh": float,
+  "coal_kwh": float,
+  "peak_demand_kwh": float,
+  "grid_providers": ["list", "of", "providers"],
+  "data_period_days": int
+}}
+
+Data:
+{text}
+
+Metrics (JSON only):""",
+        "metadata": PromptMetadata(
+            name="sustainability_metrics_extraction",
+            category="energy_metadata",
+            description="Extract quantitative sustainability and energy metrics",
+            variables=["text"],
+            purpose="Calculate precise energy consumption, renewable mix, and cost metrics",
+            output_format="json"
+        )
+    },
+    "energy_optimization_insights": {
+        "template": """Based on this energy consumption data, provide {max_insights} actionable recommendations for energy optimization and increasing renewable energy usage.
+
+Focus on:
+1. Renewable Energy Adoption: Opportunities to increase solar, wind, or hydro capacity
+2. Peak Demand Management: Strategies to reduce peak consumption and associated costs
+3. Cost Reduction: Ways to lower average cost per kWh through renewable sources or better grid management
+4. Energy Efficiency: Patterns that suggest waste or inefficiency
+5. Grid Provider Optimization: Consider switching providers or negotiating better rates
+
+Return as JSON array:
+[{{"insight": "recommendation text", "impact": "high/medium/low", "category": "renewable/cost/efficiency/grid"}}]
+
+Data:
+{text}
+
+Recommendations (JSON array with exactly {max_insights} items):""",
+        "metadata": PromptMetadata(
+            name="energy_optimization_insights",
+            category="energy_metadata",
+            description="Generate actionable recommendations for energy optimization",
+            variables=["max_insights", "text"],
+            purpose="Provide strategic insights for improving sustainability based on historical patterns",
+            output_format="json"
+        )
+    }
+}
+
+# ============================================================================
 # COMBINED REGISTRY
 # ============================================================================
 
@@ -641,5 +1019,6 @@ ALL_PROMPTS = {
     **RAG_PROMPTS,
     **LLM_SERVICE_PROMPTS,
     **VISION_PROMPTS,
-    **CHAT_PROMPTS
+    **CHAT_PROMPTS,
+    **ENERGY_METADATA_PROMPTS
 }

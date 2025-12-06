@@ -290,9 +290,64 @@ class Profile(Base):
     # Historical Data
     historical_data_path = Column(String, nullable=True)  # Path to uploaded CSV file
 
+    # ChromaDB Collection Tracking
+    chroma_collection_name = Column(String, nullable=True)  # Company-scoped ChromaDB collection name
+    historical_data_processed_at = Column(DateTime, nullable=True)  # When historical data was ingested
+    historical_data_chunk_count = Column(Integer, nullable=True, default=0)  # Number of chunks in ChromaDB
+
     # Budget
     budget = Column(Float, nullable=False)
+
+    # Report Configuration (JSON)
+    # Stores configurable parameters for energy report generation
+    # Schema: {
+    #   energy_weights: {solar, wind, hydro, biomass},
+    #   price_optimization_weights: {cost, reliability, sustainability},
+    #   portfolio_decision_weights: {esg_score, budget_fit, technical_feasibility},
+    #   confidence_threshold, enable_fallback_options, max_renewable_sources
+    # }
+    report_config = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class SavedReport(Base):
+    __tablename__ = "saved_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+
+    # Report Metadata
+    report_name = Column(String, nullable=True)  # Optional user-defined name
+    report_type = Column(String, default="energy_portfolio")  # Future: different report types
+
+    # Report Content (JSON)
+    # Stores the complete generated report data
+    # Schema: {
+    #   availability_agent: {results, reasoning, confidence, sources},
+    #   optimization_agent: {results, reasoning, confidence, sources},
+    #   portfolio_agent: {results, reasoning, confidence, sources, portfolio, esg_scores, transition_roadmap},
+    #   overall_confidence, reasoning_chain, execution_metadata
+    # }
+    report_content = Column(JSON, nullable=False)
+
+    # Profile Snapshot (JSON)
+    # Snapshot of profile data at time of report generation
+    profile_snapshot = Column(JSON, nullable=False)
+
+    # Report Configuration Snapshot (JSON)
+    # Snapshot of report_config used for this generation
+    config_snapshot = Column(JSON, nullable=False)
+
+    # Execution Metadata
+    overall_confidence = Column(Float, nullable=False)  # Overall report confidence score (0-1)
+    execution_time = Column(Float, nullable=False)  # Total execution time in seconds
+    total_tokens = Column(Integer, default=0)  # Total tokens used across all agents
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User")

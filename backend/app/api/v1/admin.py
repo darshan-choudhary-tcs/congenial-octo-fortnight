@@ -38,6 +38,9 @@ class UserUpdateAdmin(BaseModel):
     is_active: Optional[bool] = None
     roles: Optional[List[str]] = None
 
+class AdminPasswordResetRequest(BaseModel):
+    new_password: str
+
 @router.post("/onboard-admin", response_model=AdminOnboardResponse, status_code=status.HTTP_201_CREATED)
 async def onboard_admin(
     onboard_data: AdminOnboardRequest,
@@ -222,6 +225,27 @@ async def update_user_admin(
         preferred_llm=user.preferred_llm,
         explainability_level=user.explainability_level
     )
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_user_password(
+    user_id: int,
+    password_data: AdminPasswordResetRequest,
+    current_user: User = Depends(require_admin_or_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Reset user password (admin or super_admin only)"""
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Hash and update password
+    user.hashed_password = get_password_hash(password_data.new_password)
+    db.commit()
+
+    logger.info(f"Password reset for user {user.username} by admin {current_user.username}")
+
+    return {"message": f"Password successfully reset for user {user.username}"}
 
 @router.delete("/users/{user_id}")
 async def delete_user(

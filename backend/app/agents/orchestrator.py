@@ -689,7 +689,7 @@ class AgentOrchestrator:
         try:
             from app.agents.base_agents import get_council_agents
             from app.services.llm_service import llm_service
-            
+
             logger.info(f"[Orchestrator] Starting council voting for query: {query[:50]}... (strategy: {voting_strategy})")
 
             # Execute council agents in parallel with direct LLM calls (no RAG)
@@ -710,10 +710,10 @@ class AgentOrchestrator:
             # Process vote results and handle any failures
             valid_votes = []
             failed_votes = []
-            
+
             for i, result in enumerate(vote_results):
                 agent_name = council_agents[i].name
-                
+
                 if isinstance(result, Exception):
                     logger.error(f"[Orchestrator] {agent_name} failed: {result}")
                     failed_votes.append({
@@ -765,7 +765,7 @@ class AgentOrchestrator:
                     )
                     debate_history.append(debate_result)
                     valid_votes = debate_result['votes']
-                    
+
                     # Re-aggregate after debate
                     aggregation_result = await self._aggregate_council_votes(
                         votes=valid_votes,
@@ -780,7 +780,7 @@ class AgentOrchestrator:
 
             # Prepare final result
             total_execution_time = (datetime.utcnow() - start_time).total_seconds()
-            
+
             result = {
                 'response': aggregation_result['final_response'],
                 'voting_strategy': voting_strategy,
@@ -845,7 +845,7 @@ class AgentOrchestrator:
         Aggregate votes from council agents based on strategy
         """
         from app.services.llm_service import llm_service
-        
+
         if strategy == "highest_confidence":
             # Select response with highest confidence
             best_vote = max(votes, key=lambda v: v['vote']['confidence'])
@@ -866,7 +866,7 @@ class AgentOrchestrator:
 
             # Select highest confidence response
             best_vote = max(votes, key=lambda v: v['vote']['confidence'])
-            
+
             if include_synthesis:
                 # Synthesize all responses
                 synthesis = await self._synthesize_responses(votes, query, provider)
@@ -888,7 +888,7 @@ class AgentOrchestrator:
             # Always synthesize responses
             synthesis = await self._synthesize_responses(votes, query, provider)
             avg_confidence = sum(v['vote']['confidence'] for v in votes) / len(votes)
-            
+
             return {
                 'final_response': synthesis,
                 'aggregated_confidence': avg_confidence,
@@ -901,7 +901,7 @@ class AgentOrchestrator:
             confidence_levels = [v['vote']['confidence'] for v in votes]
             avg_confidence = sum(confidence_levels) / len(confidence_levels)
             closest_vote = min(votes, key=lambda v: abs(v['vote']['confidence'] - avg_confidence))
-            
+
             return {
                 'final_response': closest_vote['vote']['response'],
                 'aggregated_confidence': avg_confidence,
@@ -920,7 +920,7 @@ class AgentOrchestrator:
     ) -> str:
         """Synthesize multiple agent responses into a coherent final answer"""
         from app.services.llm_service import llm_service
-        
+
         responses_text = "\n\n".join([
             f"Agent: {vote['agent']}\n"
             f"Confidence: {vote['vote']['confidence']:.2f}\n"
@@ -963,7 +963,7 @@ Synthesized Response:"""
     ) -> Dict[str, Any]:
         """Execute a debate round where agents can refine their responses"""
         from app.agents.base_agents import get_council_agents
-        
+
         logger.info(f"[Orchestrator] Executing debate round {round_number}")
 
         # Build debate context
@@ -1020,13 +1020,13 @@ Consider the other agents' viewpoints and refine your response if needed."""
 
         confidences = [v['vote']['confidence'] for v in votes]
         avg_confidence = sum(confidences) / len(confidences)
-        
+
         # Calculate variance in confidence scores (lower = more consensus)
         variance = sum((c - avg_confidence) ** 2 for c in confidences) / len(confidences)
-        
+
         # Consensus level: high when confidence is high and variance is low
         consensus_level = avg_confidence * (1 - min(variance, 1.0))
-        
+
         # Agreement score: inverse of variance (0 to 1)
         agreement_score = max(0.0, 1.0 - variance)
 
@@ -1078,6 +1078,367 @@ Consider the other agents' viewpoints and refine your response if needed."""
             })
 
         return status
+
+    async def execute_energy_report(
+        self,
+        profile: Any,
+        user_id: int,
+        provider: str = "custom",
+        custom_config: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute multi-agent energy report generation
+
+        Args:
+            profile: User profile with industry, location, budget, sustainability targets
+            user_id: User ID for document scoping
+            provider: LLM provider
+            custom_config: Optional config overrides for weights and parameters
+
+        Returns:
+            Complete report with results from all three agents
+        """
+        start_time = datetime.utcnow()
+        agent_logs = []
+
+        try:
+            logger.info(f"[Orchestrator] Starting energy report generation for user {user_id}")
+
+            # Merge profile report_config with custom overrides
+            import json
+            default_config = json.loads(profile.report_config) if profile.report_config else {}
+            config = {**default_config, **(custom_config or {})}
+
+            # Step 1: Energy Availability Agent
+            logger.info("[Orchestrator] Step 1/3: Analyzing energy availability...")
+            availability_agent = get_agent('energy_availability')
+            availability_input = {
+                'profile': profile,
+                'user_id': user_id,
+                'weights': config.get('energy_weights', {})
+            }
+
+            availability_result = await availability_agent.execute(
+                input_data=availability_input,
+                provider=provider
+            )
+            agent_logs.append({
+                'agent': 'EnergyAvailabilityAgent',
+                'step': 1,
+                'result': availability_result,
+                'timestamp': datetime.utcnow().isoformat()
+            })
+
+            if availability_result['status'] != 'completed':
+                logger.error(f"[Orchestrator] Energy availability analysis failed: {availability_result.get('error')}")
+                return {
+                    'status': 'failed',
+                    'error': 'Energy availability analysis failed',
+                    'agent_logs': agent_logs,
+                    'execution_time': (datetime.utcnow() - start_time).total_seconds()
+                }
+
+            # Step 2: Price Optimization Agent
+            logger.info("[Orchestrator] Step 2/3: Optimizing energy pricing...")
+            optimization_agent = get_agent('price_optimization')
+            optimization_input = {
+                'profile': profile,
+                'renewable_options': availability_result.get('renewable_options', []),
+                'weights': config.get('price_optimization_weights', {}),
+                'user_id': user_id
+            }
+
+            optimization_result = await optimization_agent.execute(
+                input_data=optimization_input,
+                provider=provider
+            )
+            agent_logs.append({
+                'agent': 'PriceOptimizationAgent',
+                'step': 2,
+                'result': optimization_result,
+                'timestamp': datetime.utcnow().isoformat()
+            })
+
+            if optimization_result['status'] != 'completed':
+                logger.error(f"[Orchestrator] Price optimization failed: {optimization_result.get('error')}")
+                return {
+                    'status': 'failed',
+                    'error': 'Price optimization failed',
+                    'agent_logs': agent_logs,
+                    'execution_time': (datetime.utcnow() - start_time).total_seconds()
+                }
+
+            # Step 3: Energy Portfolio Mix Decision Agent
+            logger.info("[Orchestrator] Step 3/3: Making portfolio decision...")
+            portfolio_agent = get_agent('energy_portfolio_mix')
+            portfolio_input = {
+                'profile': profile,
+                'availability_results': availability_result,
+                'optimization_results': optimization_result,
+                'weights': config.get('portfolio_decision_weights', {})
+            }
+
+            portfolio_result = await portfolio_agent.execute(
+                input_data=portfolio_input,
+                provider=provider
+            )
+            agent_logs.append({
+                'agent': 'EnergyPortfolioMixAgent',
+                'step': 3,
+                'result': portfolio_result,
+                'timestamp': datetime.utcnow().isoformat()
+            })
+
+            if portfolio_result['status'] != 'completed':
+                logger.error(f"[Orchestrator] Portfolio decision failed: {portfolio_result.get('error')}")
+                return {
+                    'status': 'failed',
+                    'error': 'Portfolio decision failed',
+                    'agent_logs': agent_logs,
+                    'execution_time': (datetime.utcnow() - start_time).total_seconds()
+                }
+
+            # Calculate overall confidence (weighted average)
+            overall_confidence = (
+                availability_result.get('confidence', 0) * 0.3 +
+                optimization_result.get('confidence', 0) * 0.3 +
+                portfolio_result.get('confidence', 0) * 0.4
+            )
+
+            # Build comprehensive reasoning chain
+            reasoning_chain = [
+                {
+                    'step': 1,
+                    'agent': 'EnergyAvailabilityAgent',
+                    'action': 'Renewable Energy Analysis',
+                    'description': f"Analyzed renewable energy options for {profile.location} in {profile.industry} industry",
+                    'outcome': availability_result.get('reasoning', ''),
+                    'confidence': availability_result.get('confidence', 0)
+                },
+                {
+                    'step': 2,
+                    'agent': 'PriceOptimizationAgent',
+                    'action': 'Price Optimization',
+                    'description': f"Optimized energy mix within budget of ₹{profile.budget:,.0f}",
+                    'outcome': optimization_result.get('reasoning', ''),
+                    'confidence': optimization_result.get('confidence', 0)
+                },
+                {
+                    'step': 3,
+                    'agent': 'EnergyPortfolioMixAgent',
+                    'action': 'Portfolio Decision',
+                    'description': f"Final portfolio decision considering ESG targets (KP1: {profile.sustainability_target_kp1}, KP2: {profile.sustainability_target_kp2}%)",
+                    'outcome': portfolio_result.get('reasoning', ''),
+                    'confidence': portfolio_result.get('confidence', 0)
+                }
+            ]
+
+            # Aggregate token usage
+            total_token_usage = self._aggregate_token_usage([
+                availability_result,
+                optimization_result,
+                portfolio_result
+            ])
+
+            execution_time = (datetime.utcnow() - start_time).total_seconds()
+
+            report = {
+                'status': 'completed',
+                'report_sections': {
+                    'energy_availability': availability_result,
+                    'price_optimization': optimization_result,
+                    'portfolio_decision': portfolio_result
+                },
+                'overall_confidence': overall_confidence,
+                'reasoning_chain': reasoning_chain,
+                'agent_logs': agent_logs,
+                'agents_involved': ['EnergyAvailabilityAgent', 'PriceOptimizationAgent', 'EnergyPortfolioMixAgent'],
+                'execution_time': execution_time,
+                'token_usage': total_token_usage,
+                'provider': provider,
+                'config_used': config
+            }
+
+            logger.info(f"[Orchestrator] Energy report completed in {execution_time:.2f}s with confidence {overall_confidence:.2f}")
+
+            return report
+
+        except Exception as e:
+            logger.error(f"[Orchestrator] Energy report generation failed: {e}")
+            return {
+                'status': 'failed',
+                'error': str(e),
+                'agent_logs': agent_logs,
+                'execution_time': (datetime.utcnow() - start_time).total_seconds()
+            }
+
+    async def execute_energy_report_stream(
+        self,
+        profile: Any,
+        user_id: int,
+        provider: str = "custom",
+        custom_config: Optional[Dict[str, Any]] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Execute energy report with streaming progress updates
+
+        Yields progress events for real-time UI updates
+        """
+        start_time = datetime.utcnow()
+
+        try:
+            import json
+            default_config = json.loads(profile.report_config) if profile.report_config else {}
+            config = {**default_config, **(custom_config or {})}
+
+            yield {
+                'type': 'report_start',
+                'data': {
+                    'message': 'Starting energy report generation',
+                    'total_steps': 3
+                }
+            }
+
+            # Step 1: Energy Availability
+            yield {
+                'type': 'agent_start',
+                'data': {
+                    'agent': 'EnergyAvailabilityAgent',
+                    'step': 1,
+                    'message': f'Analyzing renewable energy options for {profile.location}'
+                }
+            }
+
+            availability_agent = get_agent('energy_availability')
+            availability_result = await availability_agent.execute(
+                input_data={
+                    'profile': profile,
+                    'user_id': user_id,
+                    'weights': config.get('energy_weights', {})
+                },
+                provider=provider
+            )
+
+            yield {
+                'type': 'agent_complete',
+                'data': {
+                    'agent': 'EnergyAvailabilityAgent',
+                    'step': 1,
+                    'result': availability_result
+                }
+            }
+
+            if availability_result['status'] != 'completed':
+                yield {
+                    'type': 'error',
+                    'data': {'message': 'Energy availability analysis failed', 'error': availability_result.get('error')}
+                }
+                return
+
+            # Step 2: Price Optimization
+            yield {
+                'type': 'agent_start',
+                'data': {
+                    'agent': 'PriceOptimizationAgent',
+                    'step': 2,
+                    'message': 'Optimizing energy mix based on pricing'
+                }
+            }
+
+            optimization_agent = get_agent('price_optimization')
+            optimization_result = await optimization_agent.execute(
+                input_data={
+                    'profile': profile,
+                    'renewable_options': availability_result.get('renewable_options', []),
+                    'weights': config.get('price_optimization_weights', {}),
+                    'user_id': user_id
+                },
+                provider=provider
+            )
+
+            yield {
+                'type': 'agent_complete',
+                'data': {
+                    'agent': 'PriceOptimizationAgent',
+                    'step': 2,
+                    'result': optimization_result
+                }
+            }
+
+            if optimization_result['status'] != 'completed':
+                yield {
+                    'type': 'error',
+                    'data': {'message': 'Price optimization failed', 'error': optimization_result.get('error')}
+                }
+                return
+
+            # Step 3: Portfolio Decision
+            yield {
+                'type': 'agent_start',
+                'data': {
+                    'agent': 'EnergyPortfolioMixAgent',
+                    'step': 3,
+                    'message': 'Making final portfolio decision with ESG targets'
+                }
+            }
+
+            portfolio_agent = get_agent('energy_portfolio_mix')
+            portfolio_result = await portfolio_agent.execute(
+                input_data={
+                    'profile': profile,
+                    'availability_results': availability_result,
+                    'optimization_results': optimization_result,
+                    'weights': config.get('portfolio_decision_weights', {})
+                },
+                provider=provider
+            )
+
+            yield {
+                'type': 'agent_complete',
+                'data': {
+                    'agent': 'EnergyPortfolioMixAgent',
+                    'step': 3,
+                    'result': portfolio_result
+                }
+            }
+
+            if portfolio_result['status'] != 'completed':
+                yield {
+                    'type': 'error',
+                    'data': {'message': 'Portfolio decision failed', 'error': portfolio_result.get('error')}
+                }
+                return
+
+            # Final report
+            overall_confidence = (
+                availability_result.get('confidence', 0) * 0.3 +
+                optimization_result.get('confidence', 0) * 0.3 +
+                portfolio_result.get('confidence', 0) * 0.4
+            )
+
+            execution_time = (datetime.utcnow() - start_time).total_seconds()
+
+            yield {
+                'type': 'report_complete',
+                'data': {
+                    'status': 'completed',
+                    'report_sections': {
+                        'energy_availability': availability_result,
+                        'price_optimization': optimization_result,
+                        'portfolio_decision': portfolio_result
+                    },
+                    'overall_confidence': overall_confidence,
+                    'execution_time': execution_time,
+                    'config_used': config
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"[Orchestrator] Energy report streaming failed: {e}")
+            yield {
+                'type': 'error',
+                'data': {'message': str(e)}
+            }
 
 # Global orchestrator instance
 orchestrator = AgentOrchestrator()

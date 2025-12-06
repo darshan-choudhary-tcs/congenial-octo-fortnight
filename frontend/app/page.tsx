@@ -41,68 +41,68 @@ export default function LandingPage() {
 
   const features = [
     {
-      icon: BrainIcon,
-      title: 'AI-Powered Intelligence',
-      description: 'Advanced multi-agent system with RAG capabilities for intelligent document analysis and question answering.',
+      icon: ZapIcon,
+      title: 'Location-Based Renewable Analysis',
+      description: 'Get tailored recommendations for solar, wind, hydro, and biomass based on your location and industry-specific energy needs.',
       color: 'primary.main',
     },
     {
-      icon: MessageSquareIcon,
-      title: 'Interactive Chat',
-      description: 'Natural conversations with AI that understands context and provides accurate, grounded responses.',
+      icon: BarChart3Icon,
+      title: 'Cost-Optimized Portfolios',
+      description: 'Balance cost, reliability, and sustainability goals with AI-powered energy mix optimization and price forecasting.',
       color: 'success.main',
     },
     {
-      icon: FileTextIcon,
-      title: 'Document Management',
-      description: 'Upload and organize PDFs, text files, and documents into a searchable knowledge base.',
+      icon: BrainIcon,
+      title: 'Council of Agents Consensus',
+      description: 'Unique multi-agent voting system where 3 specialized AI agents debate and reach consensus for quality assurance.',
       color: 'secondary.main',
     },
     {
-      icon: BarChart3Icon,
-      title: 'Explainable AI',
-      description: 'Understand how AI makes decisions with confidence scores, reasoning chains, and source attribution.',
+      icon: FileTextIcon,
+      title: 'Historical Energy Analysis',
+      description: 'Upload consumption data to identify patterns, anomalies, and optimization opportunities in your energy usage.',
       color: 'warning.main',
     },
     {
-      icon: ShieldIcon,
-      title: 'Role-Based Access',
-      description: 'Enterprise-grade security with granular permissions and user role management.',
+      icon: TargetIcon,
+      title: 'ESG Goal Tracking',
+      description: 'Monitor progress toward sustainability KPIs with renewable percentage tracking and zero non-renewable targets.',
       color: 'error.main',
     },
     {
-      icon: ZapIcon,
-      title: 'Dual LLM Support',
-      description: 'Choose between custom API endpoints or local Ollama models for flexibility and control.',
+      icon: MessageSquareIcon,
+      title: 'Real-Time Energy Reports',
+      description: 'Stream comprehensive energy portfolio recommendations with visual analytics and actionable insights.',
       color: 'info.main',
     },
   ]
 
   const useCases = [
     {
+      icon: ZapIcon,
+      title: 'Renewable Energy Planning',
+      description: 'Determine the optimal mix of solar, wind, hydro, and biomass for your facility based on location and budget.',
+    },
+    {
       icon: TargetIcon,
-      title: 'Research & Analysis',
-      description: 'Quickly analyze large document collections and extract insights with AI assistance.',
+      title: 'ESG Reporting & Compliance',
+      description: 'Track renewable energy adoption, monitor sustainability KPIs, and generate compliance-ready reports.',
     },
     {
-      icon: UsersIcon,
-      title: 'Team Collaboration',
-      description: 'Share knowledge across teams with organized document repositories and chat history.',
-    },
-    {
-      icon: LayersIcon,
-      title: 'Enterprise Integration',
-      description: 'Integrate with existing workflows using flexible API endpoints and authentication.',
+      icon: BarChart3Icon,
+      title: 'Cost Reduction Analysis',
+      description: 'Identify optimization opportunities in historical consumption data and reduce energy costs while increasing renewables.',
     },
   ]
 
   const benefits = [
-    'Real-time document processing and embedding',
-    'Multi-agent orchestration for complex queries',
-    'Source attribution and grounding evidence',
-    'Confidence scoring for AI responses',
-    'Customizable explainability levels',
-    'Admin dashboard for user management',
+    'Location-specific renewable potential analysis for 50+ Indian cities',
+    'Multi-agent consensus system with democratic voting',
+    'ESG-aligned portfolio optimization with cost-reliability balance',
+    'Historical consumption pattern analysis and anomaly detection',
+    'Real-time streaming energy reports with visual analytics',
+    'Company-scoped knowledge base with energy metadata',
   ]
 
   return (
@@ -110,39 +110,98 @@ export default function LandingPage() {
       {/* Navigation */}
       <AppBar
         position="fixed"
+        elevation={0}
         sx={{
-          backgroundColor: 'background.paper',
-          backdropFilter: 'blur(10px)',
-          boxShadow: 1
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid',
+          borderColor: 'divider'
         }}
       >
-        <Toolbar>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
-            <BrainIcon sx={{ fontSize: 32, color: 'primary.main' }} />
-            <Typography
-              variant="h6"
+        <Toolbar sx={{ py: 1 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              flexGrow: 1,
+              cursor: 'pointer'
+            }}
+            onClick={() => router.push('/')}
+          >
+            <Box
               sx={{
-                fontWeight: 700,
-                background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 40,
+                height: 40,
+                borderRadius: 2,
+                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.4)'
               }}
             >
-              AERO: AI for Energy Resource Optimization
-            </Typography>
+              <ZapIcon sx={{ fontSize: 24, color: 'white' }} />
+            </Box>
+            <Box>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '1.25rem',
+                  background: 'linear-gradient(90deg, #059669 0%, #047857 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  lineHeight: 1.2
+                }}
+              >
+                AERO
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.secondary',
+                  fontSize: '0.7rem',
+                  display: 'block',
+                  lineHeight: 1
+                }}
+              >
+                Energy Intelligence Platform
+              </Typography>
+            </Box>
           </Box>
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction="row" spacing={{ xs: 1, sm: 2 }} alignItems="center">
             <ThemeToggle />
             <Button
               variant="text"
               onClick={() => router.push('/auth/login')}
+              sx={{
+                color: 'text.primary',
+                fontWeight: 600,
+                textTransform: 'none',
+                '&:hover': {
+                  backgroundColor: 'action.hover'
+                }
+              }}
             >
-              Login
+              Sign In
             </Button>
             <Button
               variant="contained"
               endIcon={<ArrowRightIcon />}
               onClick={() => router.push('/auth/register')}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+                bgcolor: '#059669',
+                color: 'white',
+                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.4)',
+                '&:hover': {
+                  bgcolor: '#047857',
+                  boxShadow: '0 6px 16px rgba(5, 150, 105, 0.5)'
+                }
+              }}
             >
               Get Started
             </Button>
@@ -156,9 +215,9 @@ export default function LandingPage() {
           <Box sx={{ textAlign: 'center' }}>
             <Chip
               icon={<SparklesIcon />}
-              label="Next Generation AI Platform"
+              label="AI-Powered Energy Intelligence"
               variant="outlined"
-              sx={{ mb: 3 }}
+              sx={{ mb: 3, borderColor: '#059669', color: '#059669' }}
             />
             <Typography
               variant="h1"
@@ -166,22 +225,22 @@ export default function LandingPage() {
                 fontSize: { xs: '2.5rem', md: '3.75rem' },
                 fontWeight: 700,
                 mb: 3,
-                background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 50%, #7c3aed 100%)',
+                background: 'linear-gradient(90deg, #059669 0%, #047857 50%, #065f46 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent'
               }}
             >
-              Transform Documents into
+              Optimize Your Energy Mix with
               <br />
-              Intelligent Conversations
+              AI-Powered Sustainability Intelligence
             </Typography>
             <Typography
               variant="h5"
               color="text.secondary"
               sx={{ mb: 4, maxWidth: 800, mx: 'auto' }}
             >
-              Harness the power of Retrieval-Augmented Generation and multi-agent systems to unlock insights
-              from your documents with explainable AI you can trust.
+              Make smarter renewable energy decisions with location-specific insights, cost optimization,
+              and ESG-aligned recommendations powered by our unique multi-agent consensus system.
             </Typography>
             <Stack
               direction={{ xs: 'column', sm: 'row' }}
@@ -193,17 +252,32 @@ export default function LandingPage() {
                 size="large"
                 endIcon={<ArrowRightIcon />}
                 onClick={() => router.push('/auth/register')}
-                sx={{ px: 4 }}
+                sx={{
+                  px: 4,
+                  bgcolor: '#059669',
+                  color: 'white',
+                  '&:hover': {
+                    bgcolor: '#047857'
+                  }
+                }}
               >
-                Start Free Trial
+                Start Energy Assessment
               </Button>
               <Button
                 variant="outlined"
                 size="large"
                 onClick={() => router.push('/auth/login')}
-                sx={{ px: 4 }}
+                sx={{
+                  px: 4,
+                  borderColor: '#059669',
+                  color: '#059669',
+                  '&:hover': {
+                    borderColor: '#047857',
+                    bgcolor: 'rgba(5, 150, 105, 0.04)'
+                  }
+                }}
               >
-                View Demo
+                Sign In
               </Button>
             </Stack>
           </Box>
@@ -215,10 +289,10 @@ export default function LandingPage() {
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 8 }}>
             <Typography variant="h2" sx={{ fontWeight: 700, mb: 2 }}>
-              Powerful Features
+              Energy Intelligence Features
             </Typography>
             <Typography variant="h6" color="text.secondary" sx={{ maxWidth: 700, mx: 'auto' }}>
-              Everything you need to build intelligent, document-powered AI applications
+              Comprehensive tools to optimize your renewable energy strategy and achieve sustainability goals
             </Typography>
           </Box>
           <Grid container spacing={4}>
@@ -268,10 +342,10 @@ export default function LandingPage() {
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 8 }}>
             <Typography variant="h2" sx={{ fontWeight: 700, mb: 2 }}>
-              Built for Every Use Case
+              Built for Energy Professionals
             </Typography>
             <Typography variant="h6" color="text.secondary" sx={{ maxWidth: 700, mx: 'auto' }}>
-              From research teams to enterprise deployments, our platform scales with your needs
+              From sustainability officers to energy managers, optimize your renewable strategy with AI
             </Typography>
           </Box>
           <Grid container spacing={4}>
@@ -323,11 +397,11 @@ export default function LandingPage() {
           <Grid container spacing={6} alignItems="center">
             <Grid item xs={12} lg={6}>
               <Typography variant="h2" sx={{ fontWeight: 700, mb: 3 }}>
-                Why Choose Our Platform?
+                Why Choose AERO?
               </Typography>
               <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
-                Built with the latest AI technologies and best practices, our platform delivers
-                reliable, explainable results you can depend on.
+                Purpose-built for renewable energy optimization with specialized agents, location-based
+                intelligence, and transparent AI decision-making you can trust.
               </Typography>
               <List>
                 {benefits.map((benefit, index) => (
@@ -349,54 +423,54 @@ export default function LandingPage() {
             <Grid item xs={12} lg={6}>
               <Card
                 sx={{
-                  background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)',
+                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
                   color: 'white'
                 }}
               >
                 <CardContent sx={{ p: 4 }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 2, color: 'white' }}>
-                    Ready to Get Started?
+                    Ready to Optimize Your Energy?
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 4, color: 'rgba(255,255,255,0.9)' }}>
-                    Join teams already using our platform to transform their document workflows
+                    Join organizations already using AERO to achieve their sustainability goals
                   </Typography>
                   <Stack spacing={3}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Paper sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.2)' }}>
-                        <UsersIcon sx={{ fontSize: 28 }} />
+                        <TargetIcon sx={{ fontSize: 28 }} />
                       </Paper>
                       <Box>
                         <Typography variant="h4" sx={{ fontWeight: 700, color: 'white' }}>
-                          10,000+
+                          50+
                         </Typography>
                         <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                          Active Users
+                          Indian Locations Supported
                         </Typography>
                       </Box>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Paper sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.2)' }}>
-                        <FileTextIcon sx={{ fontSize: 28 }} />
+                        <ZapIcon sx={{ fontSize: 28 }} />
                       </Paper>
                       <Box>
                         <Typography variant="h4" sx={{ fontWeight: 700, color: 'white' }}>
-                          1M+
+                          4
                         </Typography>
                         <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                          Documents Processed
+                          Renewable Sources Analyzed
                         </Typography>
                       </Box>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Paper sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.2)' }}>
-                        <MessageSquareIcon sx={{ fontSize: 28 }} />
+                        <BrainIcon sx={{ fontSize: 28 }} />
                       </Paper>
                       <Box>
                         <Typography variant="h4" sx={{ fontWeight: 700, color: 'white' }}>
-                          5M+
+                          3
                         </Typography>
                         <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                          Queries Answered
+                          AI Agents in Council
                         </Typography>
                       </Box>
                     </Box>
@@ -408,13 +482,14 @@ export default function LandingPage() {
                       onClick={() => router.push('/auth/register')}
                       sx={{
                         bgcolor: 'white',
-                        color: 'primary.main',
+                        color: '#059669',
                         '&:hover': {
-                          bgcolor: 'rgba(255,255,255,0.9)'
+                          bgcolor: 'rgba(255,255,255,0.9)',
+                          color: '#047857'
                         }
                       }}
                     >
-                      Create Free Account
+                      Start Energy Assessment
                     </Button>
                   </Stack>
                 </CardContent>
@@ -429,17 +504,17 @@ export default function LandingPage() {
         sx={{
           py: 10,
           px: 2,
-          background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 100%)',
+          background: 'linear-gradient(90deg, #059669 0%, #047857 100%)',
           color: 'white'
         }}
       >
         <Container maxWidth="md">
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="h2" sx={{ fontWeight: 700, mb: 3, color: 'white' }}>
-              Ready to Transform Your Documents?
+              Ready to Achieve Your Sustainability Goals?
             </Typography>
             <Typography variant="h6" sx={{ mb: 4, color: 'rgba(255,255,255,0.9)' }}>
-              Start your journey with intelligent document processing today.
+              Start optimizing your renewable energy mix with AI-powered insights.
               No credit card required.
             </Typography>
             <Stack
@@ -454,14 +529,15 @@ export default function LandingPage() {
                 onClick={() => router.push('/auth/register')}
                 sx={{
                   bgcolor: 'white',
-                  color: 'primary.main',
+                  color: '#059669',
                   px: 4,
                   '&:hover': {
-                    bgcolor: 'rgba(255,255,255,0.9)'
+                    bgcolor: 'rgba(255,255,255,0.9)',
+                    color: '#047857'
                   }
                 }}
               >
-                Get Started Free
+                Start Energy Assessment
               </Button>
               <Button
                 variant="outlined"
@@ -498,13 +574,13 @@ export default function LandingPage() {
           <Grid container spacing={4} sx={{ mb: 4 }}>
             <Grid item xs={12} md={3}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <BrainIcon sx={{ fontSize: 28, color: 'primary.light' }} />
+                <ZapIcon sx={{ fontSize: 28, color: '#059669' }} />
                 <Typography sx={{ fontWeight: 700, color: 'white' }}>
                   AERO: AI for Energy Resource Optimization
                 </Typography>
               </Box>
               <Typography variant="body2" sx={{ color: 'grey.500' }}>
-                Next-generation AI platform for intelligent document processing and analysis.
+                AI-powered platform for renewable energy optimization and sustainability intelligence.
               </Typography>
             </Grid>
             <Grid item xs={12} md={3}>

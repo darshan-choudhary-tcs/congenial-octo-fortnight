@@ -258,6 +258,7 @@ def generate_data_for_location(city_info, start_date, end_date):
 
         record = {
             'timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp_unix': int(current_time.timestamp()),
             'city': city,
             'state': state,
             'latitude': lat,

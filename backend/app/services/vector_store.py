@@ -43,6 +43,8 @@ class VectorStoreService:
         """Generate collection name based on scope and user"""
         if scope == "global":
             return f"{settings.CHROMA_COLLECTION_NAME}_global_{provider}"
+        elif scope == "company" and user_id:
+            return f"{settings.CHROMA_COLLECTION_NAME}_company_{user_id}_{provider}"
         elif scope == "user" and user_id:
             return f"{settings.CHROMA_COLLECTION_NAME}_user_{user_id}_{provider}"
         else:
@@ -301,6 +303,25 @@ class VectorStoreService:
             except Exception as e:
                 logger.warning(f"Global collection search failed (may not exist yet): {e}")
 
+            # Search company collection if user_id provided
+            company_results = []
+            if user_id:
+                try:
+                    company_results = await self.similarity_search(
+                        query=query,
+                        provider=provider,
+                        n_results=n_results,
+                        filter_metadata=filter_metadata,
+                        scope="company",
+                        user_id=user_id
+                    )
+                    # Apply 1.2x boost to company results for energy/sustainability queries
+                    for result in company_results:
+                        result['similarity'] = min(1.0, result['similarity'] * 1.2)
+                    logger.info(f"Found {len(company_results)} results in company collection")
+                except Exception as e:
+                    logger.warning(f"Company collection search failed (may not exist yet): {e}")
+
             # Search user collection if user_id provided
             user_results = []
             if user_id:
@@ -317,8 +338,8 @@ class VectorStoreService:
                 except Exception as e:
                     logger.warning(f"User collection search failed (may not exist yet): {e}")
 
-            # Merge results
-            all_results = global_results + user_results
+            # Merge results with company data prioritized
+            all_results = company_results + global_results + user_results
 
             if not all_results:
                 return []

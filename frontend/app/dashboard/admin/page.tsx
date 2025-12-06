@@ -50,6 +50,7 @@ import {
   TrendingUp as TrendingUpIcon,
   AttachMoney as DollarSignIcon,
   FlashOn as ZapIcon,
+  Key as KeyIcon,
 } from '@mui/icons-material'
 
 interface User {
@@ -158,6 +159,10 @@ export default function AdminPage() {
   const [showCreateUser, setShowCreateUser] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [activeTab, setActiveTab] = useState(0)
+  const [showPasswordReset, setShowPasswordReset] = useState(false)
+  const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null)
+  const [resetPasswordUsername, setResetPasswordUsername] = useState<string>('')
+  const [newPassword, setNewPassword] = useState('')
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -246,6 +251,36 @@ export default function AdminPage() {
       await loadData()
     } catch (error: any) {
       showSnackbar(error.response?.data?.detail || 'Failed to delete user', 'error')
+    }
+  }
+
+  const handleOpenPasswordReset = (userId: string, username: string) => {
+    setResetPasswordUserId(userId)
+    setResetPasswordUsername(username)
+    setNewPassword('')
+    setShowPasswordReset(true)
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUserId || !newPassword) {
+      showSnackbar('Please enter a new password', 'warning')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      showSnackbar('Password must be at least 6 characters', 'warning')
+      return
+    }
+
+    try {
+      await adminAPI.resetUserPassword(resetPasswordUserId, newPassword)
+      showSnackbar(`Password successfully reset for ${resetPasswordUsername}`, 'success')
+      setShowPasswordReset(false)
+      setResetPasswordUserId(null)
+      setResetPasswordUsername('')
+      setNewPassword('')
+    } catch (error: any) {
+      showSnackbar(error.response?.data?.detail || 'Failed to reset password', 'error')
     }
   }
 
@@ -605,14 +640,24 @@ export default function AdminPage() {
                               size="small"
                               onClick={() => router.push(`/dashboard/admin/users/${user.id}`)}
                               color="primary"
+                              title="Edit User"
                             >
                               <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleOpenPasswordReset(user.id, user.username)}
+                              color="warning"
+                              title="Reset Password"
+                            >
+                              <KeyIcon fontSize="small" />
                             </IconButton>
                             <IconButton
                               size="small"
                               onClick={() => handleDeleteUser(user.id, user.username)}
                               disabled={user.username === currentUser?.username}
                               color="error"
+                              title="Delete User"
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>
@@ -1216,6 +1261,39 @@ export default function AdminPage() {
             </Grid>
           )}
       </Container>
+
+      {/* Password Reset Dialog */}
+      <Dialog
+        open={showPasswordReset}
+        onClose={() => setShowPasswordReset(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Reset Password for {resetPasswordUsername}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <TextField
+              fullWidth
+              label="New Password"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Enter new password (min 6 characters)"
+              helperText="Password must be at least 6 characters long"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPasswordReset(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleResetPassword}
+            disabled={!newPassword || newPassword.length < 6}
+          >
+            Reset Password
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

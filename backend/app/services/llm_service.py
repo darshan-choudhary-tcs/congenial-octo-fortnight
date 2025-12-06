@@ -435,6 +435,233 @@ class LLMService:
             logger.error(f"Failed to determine content type: {e}")
             raise
 
+    async def generate_energy_summary(
+        self,
+        text: str,
+        provider: str = "custom",
+        max_length: int = 10000
+    ) -> Dict[str, Any]:
+        """
+        Generate energy-focused summary for historical consumption data
+
+        Args:
+            text: CSV text content with energy consumption data
+            provider: LLM provider to use
+            max_length: Maximum text length to process
+
+        Returns:
+            Dictionary with 'summary' and 'token_usage' keys
+        """
+        try:
+            # Truncate text if too long
+            if len(text) > max_length * 4:
+                text = text[:max_length * 4]
+
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+            system_message = prompt_lib.get_system_prompt("data_analyst")
+            prompt = prompt_lib.get_prompt("energy_consumption_summary", text=text)
+
+            result = await self.generate_response(
+                prompt=prompt,
+                provider=provider,
+                system_message=system_message
+            )
+
+            return {
+                "summary": result["content"],
+                "token_usage": result["token_usage"]
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to generate energy summary: {e}")
+            raise
+
+    async def detect_energy_anomalies(
+        self,
+        text: str,
+        provider: str = "custom",
+        max_length: int = 10000
+    ) -> Dict[str, Any]:
+        """
+        Detect anomalies in energy consumption data
+
+        Args:
+            text: CSV text content with energy consumption data
+            provider: LLM provider to use
+            max_length: Maximum text length to process
+
+        Returns:
+            Dictionary with 'anomalies' (list) and 'token_usage' keys
+        """
+        try:
+            # Truncate text if too long
+            if len(text) > max_length * 4:
+                text = text[:max_length * 4]
+
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+            system_message = prompt_lib.get_system_prompt("data_analyst")
+            prompt = prompt_lib.get_prompt("energy_anomaly_detection", text=text)
+
+            result = await self.generate_response(
+                prompt=prompt,
+                provider=provider,
+                system_message=system_message
+            )
+
+            # Parse JSON response
+            try:
+                content = result["content"].strip()
+                # Remove markdown code blocks if present
+                if content.startswith("```json"):
+                    content = content[7:]
+                if content.startswith("```"):
+                    content = content[3:]
+                if content.endswith("```"):
+                    content = content[:-3]
+                content = content.strip()
+
+                anomalies = json.loads(content)
+                if not isinstance(anomalies, list):
+                    anomalies = []
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse anomalies JSON: {e}. Content: {result['content'][:200]}")
+                anomalies = []
+
+            return {
+                "anomalies": anomalies,
+                "token_usage": result["token_usage"]
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to detect energy anomalies: {e}")
+            raise
+
+    async def extract_sustainability_metrics(
+        self,
+        text: str,
+        provider: str = "custom",
+        max_length: int = 10000
+    ) -> Dict[str, Any]:
+        """
+        Extract quantitative sustainability metrics from energy data
+
+        Args:
+            text: CSV text content with energy consumption data
+            provider: LLM provider to use
+            max_length: Maximum text length to process
+
+        Returns:
+            Dictionary with 'metrics' (dict) and 'token_usage' keys
+        """
+        try:
+            # Truncate text if too long
+            if len(text) > max_length * 4:
+                text = text[:max_length * 4]
+
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+            system_message = prompt_lib.get_system_prompt("data_analyst")
+            prompt = prompt_lib.get_prompt("sustainability_metrics_extraction", text=text)
+
+            result = await self.generate_response(
+                prompt=prompt,
+                provider=provider,
+                system_message=system_message
+            )
+
+            # Parse JSON response
+            try:
+                content = result["content"].strip()
+                # Remove markdown code blocks if present
+                if content.startswith("```json"):
+                    content = content[7:]
+                if content.startswith("```"):
+                    content = content[3:]
+                if content.endswith("```"):
+                    content = content[:-3]
+                content = content.strip()
+
+                metrics = json.loads(content)
+                if not isinstance(metrics, dict):
+                    metrics = {}
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse metrics JSON: {e}. Content: {result['content'][:200]}")
+                metrics = {}
+
+            return {
+                "metrics": metrics,
+                "token_usage": result["token_usage"]
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to extract sustainability metrics: {e}")
+            raise
+
+    async def generate_energy_insights(
+        self,
+        text: str,
+        provider: str = "custom",
+        max_insights: int = 5,
+        max_length: int = 10000
+    ) -> Dict[str, Any]:
+        """
+        Generate actionable energy optimization recommendations
+
+        Args:
+            text: CSV text content with energy consumption data
+            provider: LLM provider to use
+            max_insights: Maximum number of insights to generate
+            max_length: Maximum text length to process
+
+        Returns:
+            Dictionary with 'insights' (list) and 'token_usage' keys
+        """
+        try:
+            # Truncate text if too long
+            if len(text) > max_length * 4:
+                text = text[:max_length * 4]
+
+            # Get prompts from library
+            prompt_lib = get_prompt_library()
+            system_message = prompt_lib.get_system_prompt("data_analyst")
+            prompt = prompt_lib.get_prompt("energy_optimization_insights", max_insights=max_insights, text=text)
+
+            result = await self.generate_response(
+                prompt=prompt,
+                provider=provider,
+                system_message=system_message
+            )
+
+            # Parse JSON response
+            try:
+                content = result["content"].strip()
+                # Remove markdown code blocks if present
+                if content.startswith("```json"):
+                    content = content[7:]
+                if content.startswith("```"):
+                    content = content[3:]
+                if content.endswith("```"):
+                    content = content[:-3]
+                content = content.strip()
+
+                insights = json.loads(content)
+                if not isinstance(insights, list):
+                    insights = []
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse insights JSON: {e}. Content: {result['content'][:200]}")
+                insights = []
+
+            return {
+                "insights": insights,
+                "token_usage": result["token_usage"]
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to generate energy insights: {e}")
+            raise
+
     def _extract_token_usage(
         self,
         response: Any,

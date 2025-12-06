@@ -22,7 +22,14 @@ import {
   CircularProgress,
   Alert,
   Skeleton,
-  Chip
+  Chip,
+  IconButton,
+  Menu,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField
 } from '@mui/material'
 import { useSnackbar } from '@/components/SnackbarProvider'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -41,7 +48,10 @@ import {
   Business as BusinessIcon,
   LocationOn as LocationIcon,
   CalendarMonth as CalendarIcon,
-  EnergySavingsLeaf as LeafIcon
+  Folder as FolderIcon,
+  EnergySavingsLeaf as LeafIcon,
+  Settings as SettingsIcon,
+  Key as KeyIcon
 } from '@mui/icons-material'
 import { authAPI, profileAPI } from '@/lib/api'
 import CountUp from 'react-countup'
@@ -98,6 +108,11 @@ export default function DashboardPage() {
   const { showSnackbar } = useSnackbar()
   const [updatingProvider, setUpdatingProvider] = useState(false)
   const [updatingExplainability, setUpdatingExplainability] = useState(false)
+  const [settingsAnchor, setSettingsAnchor] = useState<null | HTMLElement>(null)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   // New state for profile and historical data
   const [profile, setProfile] = useState<ProfileData | null>(null)
@@ -153,6 +168,22 @@ export default function DashboardPage() {
       color: 'primary.main',
     },
     {
+      title: 'Reports',
+      description: 'Energy analysis reports with multi-agent optimization',
+      icon: BarChart3Icon,
+      href: '/dashboard/reports',
+      permission: 'reports:generate',
+      color: 'success.main',
+    },
+    {
+      title: 'Saved Reports',
+      description: 'View, export, and manage your saved energy reports',
+      icon: FolderIcon,
+      href: '/dashboard/saved-reports',
+      permission: 'reports:view_saved',
+      color: 'info.main',
+    },
+    {
       title: 'Council of Agents',
       description: 'Multi-agent consensus with diverse AI perspectives',
       icon: BrainIcon,
@@ -179,8 +210,7 @@ export default function DashboardPage() {
   ]
 
   const accessibleFeatures = features.filter((feature) => {
-    if (feature.role) return hasRole(feature.role)
-    if ((feature as any).roles) return (feature as any).roles.some((role: string) => hasRole(role))
+    if ('roles' in feature && feature.roles) return feature.roles.some((role: string) => hasRole(role))
     if (feature.permission) return hasPermission(feature.permission)
     return true
   })
@@ -220,6 +250,34 @@ export default function DashboardPage() {
     }
   }
 
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      showSnackbar('Please fill in all fields', 'warning')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      showSnackbar('New password must be at least 6 characters', 'warning')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      showSnackbar('New passwords do not match', 'warning')
+      return
+    }
+
+    try {
+      await authAPI.changePassword(oldPassword, newPassword)
+      showSnackbar('Password changed successfully', 'success')
+      setShowPasswordDialog(false)
+      setOldPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (error: any) {
+      showSnackbar(error.response?.data?.detail || 'Failed to change password', 'error')
+    }
+  }
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
@@ -244,6 +302,27 @@ export default function DashboardPage() {
                 </Typography>
               </Box>
               <ThemeToggle />
+              <IconButton
+                size="small"
+                onClick={(e) => setSettingsAnchor(e.currentTarget)}
+              >
+                <SettingsIcon />
+              </IconButton>
+              <Menu
+                anchorEl={settingsAnchor}
+                open={Boolean(settingsAnchor)}
+                onClose={() => setSettingsAnchor(null)}
+              >
+                <MenuItem
+                  onClick={() => {
+                    setSettingsAnchor(null)
+                    setShowPasswordDialog(true)
+                  }}
+                >
+                  <KeyIcon sx={{ mr: 1, fontSize: 20 }} />
+                  Change Password
+                </MenuItem>
+              </Menu>
               <Button
                 variant="outlined"
                 size="small"
@@ -445,7 +524,7 @@ export default function DashboardPage() {
                               cx="50%"
                               cy="50%"
                               labelLine={false}
-                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                              label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(1)}%`}
                               outerRadius={100}
                               fill="#8884d8"
                               dataKey="value"
@@ -660,6 +739,52 @@ export default function DashboardPage() {
           })}
         </Grid>
       </Container>
+
+      {/* Password Change Dialog */}
+      <Dialog
+        open={showPasswordDialog}
+        onClose={() => setShowPasswordDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Change Password</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              fullWidth
+              label="Current Password"
+              type="password"
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
+            />
+            <TextField
+              fullWidth
+              label="New Password"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              helperText="Password must be at least 6 characters"
+            />
+            <TextField
+              fullWidth
+              label="Confirm New Password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleChangePassword}
+            disabled={!oldPassword || !newPassword || !confirmPassword || newPassword.length < 6}
+          >
+            Change Password
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

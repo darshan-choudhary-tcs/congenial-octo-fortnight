@@ -45,6 +45,9 @@ export const authAPI = {
   changePassword: (old_password: string, new_password: string) =>
     api.post('/auth/change-password', { old_password, new_password }),
 
+  resetPassword: (new_password: string) =>
+    api.post('/auth/change-password', { old_password: '', new_password }),
+
   completeSetup: (formData: FormData) =>
     api.post('/auth/complete-setup', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -141,6 +144,9 @@ export const adminAPI = {
 
   deleteUser: (userId: string | number) => api.delete(`/admin/users/${userId}`),
 
+  resetUserPassword: (userId: string | number, new_password: string) =>
+    api.post(`/admin/users/${userId}/reset-password`, { new_password }),
+
   onboardAdmin: (data: { email: string; company: string; name: string }) =>
     api.post('/admin/onboard-admin', data),
 
@@ -176,6 +182,57 @@ export const profileAPI = {
 
   getHistoricalData: (params?: { aggregation?: 'daily' | 'monthly' | 'all' }) =>
     api.get('/profile/historical-data', { params }),
+}
+
+// Reports API
+export const reportsAPI = {
+  getConfig: () => api.get('/reports/config'),
+
+  updateConfig: (config: any) => api.put('/reports/config', config),
+
+  generateReport: (data: {
+    provider?: string
+    config_override?: any
+  }) => api.post('/reports/generate', data),
+
+  generateReportStream: (data: {
+    provider?: string
+    config_override?: any
+  }) => {
+    const token = localStorage.getItem('token')
+    return new EventSource(
+      `${API_URL}/api/v1/reports/generate/stream?` +
+      new URLSearchParams({
+        provider: data.provider || 'custom',
+        ...(token && { token })
+      })
+    )
+  },
+
+  getStatus: () => api.get('/reports/status'),
+
+  // Saved reports endpoints
+  saveReport: (data: {
+    report_name?: string
+    report_content: any
+    profile_snapshot: any
+    config_snapshot: any
+    overall_confidence: number
+    execution_time: number
+    total_tokens?: number
+  }) => api.post('/reports/save', data),
+
+  getSavedReports: (params?: { skip?: number; limit?: number }) =>
+    api.get('/reports/saved', { params }),
+
+  getSavedReport: (reportId: number) =>
+    api.get(`/reports/saved/${reportId}`),
+
+  deleteSavedReport: (reportId: number) =>
+    api.delete(`/reports/saved/${reportId}`),
+
+  // Client-side PDF generation - no backend call needed
+  exportReportPDF: null as any, // Will be handled by client-side PDF generation
 }
 
 export default api

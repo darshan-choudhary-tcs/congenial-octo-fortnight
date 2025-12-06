@@ -18,8 +18,371 @@ from app.rag.ocr_processor import ocr_processor
 from app.services.vector_store import vector_store_service
 from app.services.llm_service import LLMService
 from app.config import settings
+from datetime import datetime
 
 router = APIRouter()
+
+async def process_profile_historical_data(
+    file_path: str,
+    user_id: int,
+    company_db,
+    provider: str = "custom"
+) -> dict:
+    """
+    Process historical energy data CSV for company profile and create ChromaDB collection.
+
+    Args:
+        file_path: Path to the historical data CSV file
+        user_id: User ID (company admin) for collection naming
+        company_db: Company database session
+        provider: LLM provider for metadata generation
+
+    Returns:
+        Dictionary with processing results including collection name, chunk count, and metadata
+    """
+    try:
+        logger.info(f"Processing profile historical data: {file_path}")
+
+        # Extract text and metadata from CSV
+        text_content, csv_metadata = DocumentProcessor.extract_text_from_csv(file_path)
+
+        # Generate energy-specific metadata using LLM
+        llm_service = LLMService()
+
+        # 1. Energy consumption summary
+        summary_result = await llm_service.generate_energy_summary(
+            text=text_content,
+            provider=provider
+        )
+        energy_summary = summary_result["summary"]
+        total_tokens = summary_result["token_usage"].get("total_tokens", 0)
+        logger.info(f"Energy summary generated: {len(energy_summary)} chars")
+
+        # 2. Extract sustainability metrics
+        metrics_result = await llm_service.extract_sustainability_metrics(
+            text=text_content,
+            provider=provider
+        )
+        sustainability_metrics = metrics_result["metrics"]
+        total_tokens += metrics_result["token_usage"].get("total_tokens", 0)
+        logger.info(f"Sustainability metrics extracted: {sustainability_metrics}")
+
+        # 3. Detect anomalies
+        anomalies_result = await llm_service.detect_energy_anomalies(
+            text=text_content,
+            provider=provider
+        )
+        anomalies = anomalies_result["anomalies"]
+        total_tokens += anomalies_result["token_usage"].get("total_tokens", 0)
+        logger.info(f"Anomalies detected: {len(anomalies)} issues")
+
+        # 4. Generate optimization insights
+        insights_result = await llm_service.generate_energy_insights(
+            text=text_content,
+            provider=provider,
+            max_insights=5
+        )
+        optimization_insights = insights_result["insights"]
+        total_tokens += insights_result["token_usage"].get("total_tokens", 0)
+        logger.info(f"Optimization insights generated: {len(optimization_insights)} recommendations")
+
+        # Extract energy-specific keywords from column names
+        energy_keywords = [
+            "energy_consumption", "renewable_energy", "solar_kwh", "wind_kwh",
+            "hydro_kwh", "coal_kwh", "sustainability", "carbon_reduction",
+            "cost_optimization", "peak_demand", "grid_provider"
+        ]
+        if csv_metadata.get("column_names"):
+            # Add actual column names as keywords
+            energy_keywords.extend([col.lower().replace('_', ' ') for col in csv_metadata["column_names"][:10]])
+
+        # Topics for energy data
+        energy_topics = [
+            "Energy Consumption Patterns",
+            "Renewable Energy Mix",
+            "Cost Analysis",
+            "Peak Demand Management",
+            "Sustainability Metrics"
+        ]
+
+        # Chunk the text content (by time periods for historical data)
+        chunks = TextChunker.chunk_text(
+            text_content,
+            chunk_size=2000,  # Larger chunks for time-series data
+            chunk_overlap=300
+        )
+        logger.info(f"Text chunked into {len(chunks)} pieces")
+
+        # Prepare chunk metadata with energy focus
+        chunk_texts = [chunk['content'] for chunk in chunks]
+        chunk_metadatas = [
+            {
+                'document_type': 'profile_historical_data',
+                'user_id': str(user_id),
+                'scope': 'company',
+                'chunk_index': chunk['chunk_index'],
+                'content_type': 'energy_consumption_data',
+                'keywords': ', '.join(energy_keywords[:15]),
+                'topics': ', '.join(energy_topics),
+                'csv_rows': csv_metadata.get('rows', 0),
+                'csv_columns': csv_metadata.get('columns', 0),
+                'renewable_percentage': sustainability_metrics.get('renewable_percentage', 0),
+                'total_energy_kwh': sustainability_metrics.get('total_energy_kwh', 0),
+                'has_anomalies': len(anomalies) > 0,
+                'anomaly_count': len(anomalies)
+            }
+            for chunk in chunks
+        ]
+
+        # Add to company-scoped ChromaDB collection
+        collection_name = vector_store_service.get_collection_name("company", provider, user_id)
+        logger.info(f"Adding {len(chunks)} chunks to collection: {collection_name}")
+
+        chunk_ids = await vector_store_service.add_documents(
+            texts=chunk_texts,
+            metadatas=chunk_metadatas,
+            provider=provider,
+            scope="company",
+            user_id=user_id
+        )
+
+        # Create Document record in company database
+        from app.database.models import Document as CompanyDocument
+        document = CompanyDocument(
+            filename=os.path.basename(file_path),
+            file_path=file_path,
+            file_type='csv',
+            file_size=os.path.getsize(file_path),
+            title="Company Historical Energy Data",
+            description="Historical energy consumption data uploaded during company profile setup",
+            uploaded_by_id=user_id,
+            scope="company",
+            processing_status="completed",
+            is_processed=True,
+            num_chunks=len(chunks),
+            num_tokens=sum(chunk['num_tokens'] for chunk in chunks),
+            # Energy-specific metadata
+            auto_summary=energy_summary,
+            auto_keywords=energy_keywords[:15],
+            auto_topics=energy_topics,
+            content_type="energy_consumption_data",
+            summarization_model=provider,
+            summarization_tokens=total_tokens,
+            summarized_at=datetime.utcnow()
+        )
+        company_db.add(document)
+
+        # Save chunks to company database
+        from app.database.models import DocumentChunk as CompanyDocumentChunk
+        for chunk, chunk_id in zip(chunks, chunk_ids):
+            doc_chunk = CompanyDocumentChunk(
+                document_id=document.id,
+                content=chunk['content'],
+                chunk_index=chunk['chunk_index'],
+                num_tokens=chunk['num_tokens'],
+                embedding_id=chunk_id
+            )
+            company_db.add(doc_chunk)
+
+        company_db.flush()
+
+        logger.info(f"Historical data processed successfully: {len(chunks)} chunks, {total_tokens} tokens")
+
+        return {
+            "collection_name": collection_name,
+            "chunk_count": len(chunks),
+            "total_tokens": total_tokens,
+            "document_id": document.id,
+            "energy_summary": energy_summary,
+            "sustainability_metrics": sustainability_metrics,
+            "anomalies": anomalies,
+            "optimization_insights": optimization_insights,
+            "csv_rows": csv_metadata.get('rows', 0),
+            "csv_columns": csv_metadata.get('columns', 0)
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to process profile historical data: {e}")
+        raise
+
+async def process_renewable_potential_data(
+    user_id: int,
+    company_db,
+    location: str,
+    provider: str = "custom"
+) -> dict:
+    """
+    Process renewable energy potential data CSV and add to company ChromaDB collection.
+
+    Args:
+        user_id: User ID (company admin) for collection naming
+        company_db: Company database session
+        location: Company location to filter relevant data
+        provider: LLM provider for metadata generation
+
+    Returns:
+        Dictionary with processing results
+    """
+    try:
+        # Path to renewable energy potential data
+        renewable_data_path = os.path.join(settings.UPLOAD_DIR, "renewable_energy_data.csv")
+
+        if not os.path.exists(renewable_data_path):
+            logger.warning(f"Renewable energy data file not found: {renewable_data_path}")
+            return {"chunk_count": 0, "message": "Renewable data file not found"}
+
+        logger.info(f"Processing renewable energy potential data: {renewable_data_path}")
+
+        # Extract text and metadata from CSV
+        text_content, csv_metadata = DocumentProcessor.extract_text_from_csv(renewable_data_path)
+
+        # Generate renewable potential summary using LLM
+        llm_service = LLMService()
+
+        # Create specialized prompt for renewable potential data
+        potential_summary_prompt = f"""Analyze this renewable energy potential data for {location} and surrounding regions.
+
+Focus on:
+1. Solar Potential: Average solar irradiance (W/m²), peak generation times, seasonal variations
+2. Wind Potential: Wind speed patterns (m/s), wind power density (kW/m²), terrain effects
+3. Hydro Potential: Hydro generation capacity (MW), seasonal availability, terrain influence
+4. Location Analysis: Compare renewable potential across different cities and terrains
+5. Recommendations: Best renewable sources for {location} based on geographic and climate data
+
+Provide a comprehensive 200-300 word analysis focusing on actionable insights for renewable energy adoption.
+
+Data:
+{text_content[:8000]}
+
+Analysis:"""
+
+        from app.prompts import get_prompt_library
+        prompt_lib = get_prompt_library()
+        system_message = prompt_lib.get_system_prompt("data_analyst")
+
+        result = await llm_service.generate_response(
+            prompt=potential_summary_prompt,
+            provider=provider,
+            system_message=system_message
+        )
+
+        potential_summary = result["content"]
+        total_tokens = result["token_usage"].get("total_tokens", 0)
+        logger.info(f"Renewable potential summary generated: {len(potential_summary)} chars")
+
+        # Renewable-specific keywords
+        renewable_keywords = [
+            "solar_irradiance", "wind_speed", "wind_power", "hydro_potential",
+            "renewable_capacity", "solar_potential", "wind_potential",
+            "terrain_analysis", "geographic_potential", "clean_energy",
+            "location_based_renewable", location.lower()
+        ]
+
+        if csv_metadata.get("column_names"):
+            renewable_keywords.extend([col.lower().replace('_', ' ') for col in csv_metadata["column_names"][:10]])
+
+        # Topics for renewable potential data
+        renewable_topics = [
+            "Solar Energy Potential",
+            "Wind Energy Potential",
+            "Hydro Energy Potential",
+            "Geographic Analysis",
+            "Renewable Resource Assessment"
+        ]
+
+        # Chunk the text content
+        chunks = TextChunker.chunk_text(
+            text_content,
+            chunk_size=2000,
+            chunk_overlap=300
+        )
+        logger.info(f"Renewable data chunked into {len(chunks)} pieces")
+
+        # Prepare chunk metadata
+        chunk_texts = [chunk['content'] for chunk in chunks]
+        chunk_metadatas = [
+            {
+                'document_type': 'renewable_potential_data',
+                'user_id': str(user_id),
+                'scope': 'company',
+                'location': location,
+                'chunk_index': chunk['chunk_index'],
+                'content_type': 'renewable_energy_potential',
+                'keywords': ', '.join(renewable_keywords[:15]),
+                'topics': ', '.join(renewable_topics),
+                'csv_rows': csv_metadata.get('rows', 0),
+                'csv_columns': csv_metadata.get('columns', 0),
+                'data_source': 'location_specific_renewable_potential'
+            }
+            for chunk in chunks
+        ]
+
+        # Add to company-scoped ChromaDB collection (same collection as historical data)
+        collection_name = vector_store_service.get_collection_name("company", provider, user_id)
+        logger.info(f"Adding {len(chunks)} renewable potential chunks to collection: {collection_name}")
+
+        chunk_ids = await vector_store_service.add_documents(
+            texts=chunk_texts,
+            metadatas=chunk_metadatas,
+            provider=provider,
+            scope="company",
+            user_id=user_id
+        )
+
+        # Create Document record in company database
+        from app.database.models import Document as CompanyDocument
+        document = CompanyDocument(
+            filename="renewable_energy_data.csv",
+            file_path=renewable_data_path,
+            file_type='csv',
+            file_size=os.path.getsize(renewable_data_path),
+            title=f"Renewable Energy Potential Data - {location}",
+            description=f"Location-specific renewable energy potential data for {location} and surrounding regions",
+            uploaded_by_id=user_id,
+            scope="company",
+            processing_status="completed",
+            is_processed=True,
+            num_chunks=len(chunks),
+            num_tokens=sum(chunk['num_tokens'] for chunk in chunks),
+            auto_summary=potential_summary,
+            auto_keywords=renewable_keywords[:15],
+            auto_topics=renewable_topics,
+            content_type="renewable_energy_potential",
+            summarization_model=provider,
+            summarization_tokens=total_tokens,
+            summarized_at=datetime.utcnow()
+        )
+        company_db.add(document)
+
+        # Save chunks to company database
+        from app.database.models import DocumentChunk as CompanyDocumentChunk
+        for chunk, chunk_id in zip(chunks, chunk_ids):
+            doc_chunk = CompanyDocumentChunk(
+                document_id=document.id,
+                content=chunk['content'],
+                chunk_index=chunk['chunk_index'],
+                num_tokens=chunk['num_tokens'],
+                embedding_id=chunk_id
+            )
+            company_db.add(doc_chunk)
+
+        company_db.flush()
+
+        logger.info(f"Renewable potential data processed successfully: {len(chunks)} chunks, {total_tokens} tokens")
+
+        return {
+            "collection_name": collection_name,
+            "chunk_count": len(chunks),
+            "total_tokens": total_tokens,
+            "document_id": document.id,
+            "potential_summary": potential_summary,
+            "csv_rows": csv_metadata.get('rows', 0),
+            "csv_columns": csv_metadata.get('columns', 0)
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to process renewable potential data: {e}")
+        raise
 
 async def _process_and_upload_document(
     file: UploadFile,

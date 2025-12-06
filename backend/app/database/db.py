@@ -184,6 +184,14 @@ def seed_roles_and_permissions(db: Session):
         # Explainability permissions
         {"name": "explain:view", "description": "View explanations", "resource": "explainability", "action": "read"},
         {"name": "explain:detailed", "description": "View detailed explanations", "resource": "explainability", "action": "detailed"},
+
+        # Reports permissions
+        {"name": "reports:generate", "description": "Generate energy reports", "resource": "reports", "action": "generate"},
+        {"name": "reports:view", "description": "View reports", "resource": "reports", "action": "view"},
+        {"name": "reports:configure", "description": "Configure report settings", "resource": "reports", "action": "configure"},
+        {"name": "reports:save", "description": "Save generated reports", "resource": "reports", "action": "save"},
+        {"name": "reports:view_saved", "description": "View saved reports", "resource": "reports", "action": "view_saved"},
+        {"name": "reports:export", "description": "Export reports to PDF", "resource": "reports", "action": "export"},
     ]
 
     permissions = {}
@@ -208,7 +216,9 @@ def seed_roles_and_permissions(db: Session):
                 "documents:create", "documents:read", "documents:update", "documents:delete",
                 "agents:execute", "agents:read", "agents:configure",
                 "chat:use", "chat:history",
-                "explain:view", "explain:detailed"
+                "explain:view", "explain:detailed",
+                "reports:generate", "reports:view", "reports:configure",
+                "reports:save", "reports:view_saved", "reports:export"
             ]
         },
         {
@@ -218,6 +228,8 @@ def seed_roles_and_permissions(db: Session):
                 "documents:read",
                 "agents:read",
                 "chat:use", "chat:history",
+                "reports:generate", "reports:view", "reports:configure",
+                "reports:save", "reports:view_saved", "reports:export",
                 "explain:view"
             ]
         }

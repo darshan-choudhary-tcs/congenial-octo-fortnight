@@ -1,55 +1,55 @@
 {
   "stats": [
     {
-      "icon": "DocumentIcon",
-      "value": 1000000,
+      "icon": "LocationIcon",
+      "value": 50,
       "suffix": "+",
-      "label": "Documents Processed",
+      "label": "Indian Locations Supported",
       "delay": 0,
       "decimals": 0,
       "iconColor": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
     },
     {
-      "icon": "QueryIcon",
-      "value": 5000000,
-      "suffix": "+",
-      "label": "Queries Answered",
+      "icon": "RenewableIcon",
+      "value": 4,
+      "suffix": " Sources",
+      "label": "Renewable Energy Types",
       "delay": 150,
-      "decimals": 0,
-      "iconColor": "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
-    },
-    {
-      "icon": "PeopleIcon",
-      "value": 10000,
-      "suffix": "+",
-      "label": "Active Users",
-      "delay": 300,
-      "decimals": 0,
-      "iconColor": "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
-    },
-    {
-      "icon": "ConfidenceIcon",
-      "value": 95,
-      "suffix": "%",
-      "label": "Confidence Score",
-      "delay": 450,
       "decimals": 0,
       "iconColor": "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"
     },
     {
-      "icon": "VectorIcon",
-      "value": 2000000,
-      "suffix": "+",
-      "label": "Vector Embeddings",
+      "icon": "AgentIcon",
+      "value": 3,
+      "suffix": " Agents",
+      "label": "Council Voting System",
+      "delay": 300,
+      "decimals": 0,
+      "iconColor": "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
+    },
+    {
+      "icon": "ReportIcon",
+      "value": 6,
+      "suffix": " Types",
+      "label": "Energy Report Categories",
+      "delay": 450,
+      "decimals": 0,
+      "iconColor": "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+    },
+    {
+      "icon": "EnergyIcon",
+      "value": 100,
+      "suffix": "%",
+      "label": "Renewable Target Support",
       "delay": 600,
       "decimals": 0,
       "iconColor": "linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
     },
     {
-      "icon": "AgentIcon",
-      "value": 15000000,
-      "suffix": "+",
-      "label": "Agent Executions",
+      "icon": "ConfidenceIcon",
+      "value": 95,
+      "suffix": "%",
+      "label": "AI Confidence Score",
       "delay": 750,
       "decimals": 0,
       "iconColor": "linear-gradient(135deg, #30cfd0 0%, #330867 100%)"

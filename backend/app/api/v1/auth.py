@@ -28,6 +28,7 @@ from app.auth.schemas import (
     SetupCompleteResponse,
     ProfileResponse
 )
+from app.services.vector_store import vector_store_service
 from app.config import settings
 from app.database.models import Profile
 from app.services.database_service import DatabaseService
@@ -354,6 +355,77 @@ async def complete_setup(
         )
 
         logger.info(f"✓ Company database created: {company_db_name}")
+
+        # Process historical data and renewable potential data for ChromaDB ingestion
+        logger.info(f"Processing energy data for ChromaDB ingestion...")
+        try:
+            from app.database.db import get_session_for_db
+            from app.api.v1.documents import process_profile_historical_data, process_renewable_potential_data
+
+            company_session = get_session_for_db(company_db_name)
+            total_chunks = 0
+
+            try:
+                # 1. Process historical consumption data if provided
+                if historical_data_path:
+                    logger.info(f"Processing historical consumption data...")
+                    processing_result = await process_profile_historical_data(
+                        file_path=historical_data_path,
+                        user_id=current_user.id,
+                        company_db=company_session,
+                        provider=current_user.preferred_llm or "custom"
+                    )
+
+                    total_chunks += processing_result["chunk_count"]
+
+                    logger.info(f"✓ Historical data processed: {processing_result['chunk_count']} chunks")
+                    logger.info(f"  Renewable %: {processing_result['sustainability_metrics'].get('renewable_percentage', 'N/A')}")
+                    logger.info(f"  Anomalies detected: {len(processing_result['anomalies'])}")
+                    logger.info(f"  Optimization insights: {len(processing_result['optimization_insights'])}")
+
+                # 2. Process renewable energy potential data (always available)
+                logger.info(f"Processing renewable energy potential data...")
+                renewable_result = await process_renewable_potential_data(
+                    user_id=current_user.id,
+                    company_db=company_session,
+                    location=location,
+                    provider=current_user.preferred_llm or "custom"
+                )
+
+                if renewable_result.get("chunk_count", 0) > 0:
+                    total_chunks += renewable_result["chunk_count"]
+                    logger.info(f"✓ Renewable potential data processed: {renewable_result['chunk_count']} chunks")
+                    logger.info(f"  Location: {location}")
+                    logger.info(f"  Data rows: {renewable_result.get('csv_rows', 'N/A')}")
+                else:
+                    logger.warning("Renewable potential data not found or empty")
+
+                # Update profile with ChromaDB tracking info
+                if total_chunks > 0:
+                    profile = company_session.query(Profile).filter(Profile.user_id == 1).first()
+                    if profile:
+                        collection_name = vector_store_service.get_collection_name(
+                            "company",
+                            current_user.preferred_llm or "custom",
+                            current_user.id
+                        )
+                        profile.chroma_collection_name = collection_name
+                        profile.historical_data_processed_at = datetime.utcnow()
+                        profile.historical_data_chunk_count = total_chunks
+
+                    company_session.commit()
+                    logger.info(f"✓ Total chunks in ChromaDB: {total_chunks}, collection: {collection_name}")
+
+            except Exception as processing_error:
+                company_session.rollback()
+                logger.error(f"Energy data processing failed: {processing_error}")
+                # Don't fail the entire setup, just log the error
+                logger.warning("Setup will continue without complete energy data ingestion")
+            finally:
+                company_session.close()
+
+        except Exception as import_error:
+            logger.error(f"Failed to import processing functions: {import_error}")
 
         # Update user in primary database
         current_user.is_first_login = False

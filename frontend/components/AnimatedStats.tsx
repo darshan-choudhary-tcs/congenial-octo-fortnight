@@ -11,6 +11,10 @@ import {
   SmartToy as AgentIcon,
   Speed as SpeedIcon,
   Settings as SettingsIcon,
+  LocationOn as LocationIcon,
+  Bolt as EnergyIcon,
+  EmojiObjects as RenewableIcon,
+  Assessment as ReportIcon,
 } from '@mui/icons-material'
 import statsData from '@/data/stats.json'
 
@@ -118,6 +122,10 @@ export default function AnimatedStats() {
     AgentIcon: <AgentIcon fontSize="inherit" />,
     SpeedIcon: <SpeedIcon fontSize="inherit" />,
     SettingsIcon: <SettingsIcon fontSize="inherit" />,
+    LocationIcon: <LocationIcon fontSize="inherit" />,
+    EnergyIcon: <EnergyIcon fontSize="inherit" />,
+    RenewableIcon: <RenewableIcon fontSize="inherit" />,
+    ReportIcon: <ReportIcon fontSize="inherit" />,
   }
 
   // Map JSON data to include React icon components
@@ -132,8 +140,7 @@ export default function AnimatedStats() {
       sx={{
         py: 10,
         px: 2,
-        background: (theme) =>
-          `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
         position: 'relative',
         overflow: 'hidden',
         '&::before': {
@@ -159,7 +166,7 @@ export default function AnimatedStats() {
               textShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
             }}
           >
-            Trusted by Thousands, Powered by AI
+            Built for Energy Optimization at Scale
           </Typography>
           <Typography
             variant="h6"
@@ -170,7 +177,7 @@ export default function AnimatedStats() {
               fontWeight: 400,
             }}
           >
-            Real metrics from real users leveraging our advanced AI platform
+            Advanced AI capabilities designed specifically for renewable energy intelligence
           </Typography>
         </Box>
 
