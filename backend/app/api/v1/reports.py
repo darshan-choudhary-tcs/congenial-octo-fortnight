@@ -729,4 +729,308 @@ async def delete_saved_report(
         )
 
 
+@router.post("/saved/{report_id}/generate-textual-version")
+async def generate_textual_version(
+    report_id: int,
+    current_user: User = Depends(require_permission("reports:view")),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a full verbose textual version of the report using LLM.
+    This creates a comprehensive narrative document without charts or UI elements.
+    """
+    try:
+        from app.database.models import SavedReport
+        from app.services.llm_service import llm_service
+        from datetime import datetime
+
+        # Get user from company database
+        company_user = db.query(User).filter(User.username == current_user.username).first()
+        if not company_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found in company database."
+            )
+
+        # Query saved report
+        report = db.query(SavedReport)\
+            .filter(SavedReport.id == report_id)\
+            .filter(SavedReport.user_id == company_user.id)\
+            .first()
+
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        # Build comprehensive prompt for textual report generation
+        report_content = report.report_content
+        profile_snapshot = report.profile_snapshot
+
+        # Extract key information from report sections
+        availability_section = report_content.get("availability_agent", {})
+        optimization_section = report_content.get("optimization_agent", {})
+        portfolio_section = report_content.get("portfolio_agent", {})
+
+        prompt = f"""Generate a comprehensive, verbose textual report for an Energy Portfolio Analysis.
+This report is for {profile_snapshot.get('industry', 'N/A')} industry located in {profile_snapshot.get('location', 'N/A')}.
+
+Budget: ${profile_snapshot.get('budget', 0):,.0f}
+Sustainability Target: {profile_snapshot.get('sustainability_target_kp2', 0)}% renewable energy by {profile_snapshot.get('sustainability_target_kp1', 'N/A')}
+
+Overall Confidence Score: {report.overall_confidence:.1%}
+
+Create a FULL NARRATIVE REPORT with the following sections:
+
+[EXECUTIVE SUMMARY]
+Provide a comprehensive executive summary highlighting key findings, recommendations, and strategic implications.
+
+[COMPANY PROFILE]
+Detail the company's industry, location, current energy situation, budget constraints, and sustainability goals.
+
+[RENEWABLE ENERGY AVAILABILITY ANALYSIS]
+Based on this analysis:
+{json.dumps(availability_section, indent=2)}
+
+Provide a detailed narrative covering available renewable energy sources (solar, wind, hydro), capacity factors and reliability scores for each source, location-specific considerations and constraints, seasonal variations and expected performance, and technical feasibility assessment.
+
+[PRICE OPTIMIZATION ANALYSIS]
+Based on this analysis:
+{json.dumps(optimization_section, indent=2)}
+
+Provide comprehensive details on the optimized energy mix breakdown with percentages, cost analysis for each energy source (installation, operational, maintenance), total annual costs and cost per kWh, budget utilization and financial viability, trade-offs between cost, reliability, and sustainability, and return on investment projections.
+
+[ENERGY PORTFOLIO RECOMMENDATION]
+Based on this portfolio decision:
+{json.dumps(portfolio_section, indent=2)}
+
+Provide an in-depth discussion of the final recommended energy portfolio composition, ESG scores and sustainability metrics, alignment with target goals (renewable percentage, zero non-renewable timeline), year-by-year transition roadmap with milestones, technical implementation considerations, and risk factors and mitigation strategies.
+
+[IMPLEMENTATION ROADMAP]
+Detail the step-by-step implementation plan with phase-wise deployment strategy, timeline and key milestones, resource requirements, potential challenges and solutions, and success metrics and KPIs.
+
+[CONCLUSION AND RECOMMENDATIONS]
+Summarize key takeaways and actionable recommendations for stakeholders.
+
+CRITICAL FORMATTING RULES:
+- Write ONLY in plain text - NO markdown syntax whatsoever
+- Do NOT use # for headers, ** for bold, * for italics, or any markdown formatting
+- Use section titles in [BRACKETS] as shown above
+- Write in full paragraphs with detailed explanations
+- Use professional, business-appropriate language
+- Include specific numbers, percentages, and data points in the text
+- Use flowing narrative prose - no bullet points, no numbered lists
+- Do NOT include charts, graphs, or visual elements
+- Do NOT include tables or any structured formatting
+- Write as if this is a formal business report document for printing
+- Be comprehensive and verbose - aim for a thorough analysis
+- Separate sections with blank lines only"""
+
+        # Generate textual version using LLM
+        logger.info(f"Generating textual version for report {report_id}")
+
+        system_message = "You are an expert energy analyst creating comprehensive business reports. Write in a professional, detailed, narrative style suitable for executive review."
+
+        response = await llm_service.generate_response(
+            prompt=prompt,
+            provider=company_user.preferred_llm or "custom",
+            system_message=system_message
+        )
+
+        generated_text = response["content"]
+
+        # Store textual version in report
+        textual_version_data = {
+            "generated_text": generated_text,
+            "edited_text": None,  # Will be populated when user edits
+            "generated_at": datetime.utcnow().isoformat(),
+            "edited_at": None,
+            "edit_count": 0
+        }
+
+        report.textual_version = textual_version_data
+        db.commit()
+        db.refresh(report)
+
+        logger.info(f"Textual version generated for report {report_id}")
+
+        return {
+            "success": True,
+            "textual_version": textual_version_data,
+            "report_id": report_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating textual version: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate textual version: {str(e)}"
+        )
+
+
+@router.put("/saved/{report_id}/textual-version")
+async def update_textual_version(
+    report_id: int,
+    edited_text: Dict[str, str],
+    current_user: User = Depends(require_permission("reports:save")),
+    db: Session = Depends(get_db)
+):
+    """
+    Update the edited textual version of the report (HITL - Human-in-the-Loop).
+    Saves user's reviewed and edited version.
+    """
+    try:
+        from app.database.models import SavedReport
+        from datetime import datetime
+
+        # Get user from company database
+        company_user = db.query(User).filter(User.username == current_user.username).first()
+        if not company_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found in company database."
+            )
+
+        # Query saved report
+        report = db.query(SavedReport)\
+            .filter(SavedReport.id == report_id)\
+            .filter(SavedReport.user_id == company_user.id)\
+            .first()
+
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        if not report.textual_version:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Textual version has not been generated yet"
+            )
+
+        # Update edited text
+        textual_data = report.textual_version
+        textual_data["edited_text"] = edited_text.get("text", "")
+        textual_data["edited_at"] = datetime.utcnow().isoformat()
+        textual_data["edit_count"] = textual_data.get("edit_count", 0) + 1
+
+        report.textual_version = textual_data
+        db.commit()
+        db.refresh(report)
+
+        logger.info(f"Textual version updated for report {report_id} by {company_user.username}")
+
+        return {
+            "success": True,
+            "textual_version": textual_data,
+            "report_id": report_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating textual version: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update textual version: {str(e)}"
+        )
+
+
+@router.get("/saved/{report_id}/download-text")
+async def download_textual_version(
+    report_id: int,
+    current_user: User = Depends(require_permission("reports:view")),
+    db: Session = Depends(get_db)
+):
+    """
+    Download the textual version of the report as a text file.
+    Returns the edited version if available, otherwise the generated version.
+    """
+    try:
+        from app.database.models import SavedReport
+        from fastapi.responses import Response
+
+        # Get user from company database
+        company_user = db.query(User).filter(User.username == current_user.username).first()
+        if not company_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found in company database."
+            )
+
+        # Query saved report
+        report = db.query(SavedReport)\
+            .filter(SavedReport.id == report_id)\
+            .filter(SavedReport.user_id == company_user.id)\
+            .first()
+
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        if not report.textual_version:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Textual version has not been generated yet"
+            )
+
+        textual_data = report.textual_version
+
+        # Use edited version if available, otherwise use generated version
+        text_content = textual_data.get("edited_text") or textual_data.get("generated_text", "")
+
+        if not text_content:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No textual content available"
+            )
+
+        # Add header with metadata
+        report_name = report.report_name or f"Energy Report {report_id}"
+        header = f"""{'='*80}
+{report_name.upper()}
+{'='*80}
+
+Company: {company_user.company or 'N/A'}
+Generated: {report.created_at.strftime('%B %d, %Y at %I:%M %p')}
+Confidence Score: {report.overall_confidence:.1%}
+{'Reviewed and Edited by User' if textual_data.get('edited_text') else 'AI-Generated Version'}
+
+{'='*80}
+
+"""
+
+        full_content = header + text_content
+
+        # Generate filename
+        filename = f"{report_name.replace(' ', '_')}_textual_report.txt"
+
+        logger.info(f"Textual version downloaded for report {report_id} by {company_user.username}")
+
+        return Response(
+            content=full_content,
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading textual version: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to download textual version: {str(e)}"
+        )
+
+
 # PDF export removed - now handled client-side in frontend

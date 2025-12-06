@@ -345,6 +345,17 @@ class SavedReport(Base):
     execution_time = Column(Float, nullable=False)  # Total execution time in seconds
     total_tokens = Column(Integer, default=0)  # Total tokens used across all agents
 
+    # Textual Version (JSON)
+    # Stores LLM-generated narrative report and user edits
+    # Schema: {
+    #   generated_text: "Full narrative report...",
+    #   edited_text: "User-reviewed version...",
+    #   generated_at: timestamp,
+    #   edited_at: timestamp,
+    #   edit_count: int
+    # }
+    textual_version = Column(JSON, nullable=True)  # HITL textual report with edits
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
