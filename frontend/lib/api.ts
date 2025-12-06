@@ -236,4 +236,46 @@ export const reportsAPI = {
   exportReportPDF: null as any, // Will be handled by client-side PDF generation
 }
 
+// Prompts API (Admin only)
+export const promptsAPI = {
+  listPrompts: (params?: { category?: string }) =>
+    api.get('/prompts', { params }),
+
+  getPrompt: (name: string) =>
+    api.get(`/prompts/${name}`),
+
+  getCategories: () =>
+    api.get('/prompts/categories'),
+
+  getStats: () =>
+    api.get('/prompts/stats'),
+
+  createPrompt: (data: {
+    name: string
+    template: string
+    category: string
+    description: string
+    variables?: string[]
+    output_format?: string
+    purpose?: string
+    examples?: string[]
+  }) => api.post('/prompts', data),
+
+  updatePrompt: (name: string, data: {
+    template?: string
+    category?: string
+    description?: string
+    variables?: string[]
+    output_format?: string
+    purpose?: string
+    examples?: string[]
+  }) => api.put(`/prompts/${name}`, data),
+
+  deletePrompt: (name: string) =>
+    api.delete(`/prompts/${name}`),
+
+  testPrompt: (name: string, variables: Record<string, string>) =>
+    api.post(`/prompts/${name}/test`, { variables }),
+}
+
 export default api

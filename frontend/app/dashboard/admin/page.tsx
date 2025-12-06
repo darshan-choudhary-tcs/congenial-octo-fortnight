@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { adminAPI, authAPI } from '@/lib/api'
+import { adminAPI, authAPI, promptsAPI } from '@/lib/api'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useSnackbar } from '@/components/SnackbarProvider'
 import { formatDate } from '@/lib/utils'
@@ -54,6 +54,11 @@ import {
   Key as KeyIcon,
   Logout as LogOutIcon,
   ArrowBack as ArrowBackIcon,
+  Code as CodeIcon,
+  Description as DescriptionIcon,
+  Category as CategoryIcon,
+  Info as InfoIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material'
 
 interface User {
@@ -150,6 +155,34 @@ interface LLMConfig {
   }
 }
 
+interface Prompt {
+  name: string
+  category: string
+  description: string
+  template: string
+  variables: string[]
+  version: string
+  output_format: string
+  purpose: string
+  examples: string[]
+  is_custom: boolean
+  usage_count: number
+  created_at: string
+}
+
+interface PromptStats {
+  total_prompts: number
+  custom_prompts: number
+  built_in_prompts: number
+  total_usage: number
+  most_used: Array<{
+    name: string
+    usage_count: number
+    category: string
+  }>
+  by_category: Record<string, number>
+}
+
 export default function AdminPage() {
   const { user: currentUser, logout } = useAuth()
   const { showSnackbar } = useSnackbar()
@@ -179,6 +212,13 @@ export default function AdminPage() {
     role: 'viewer',
   })
 
+  // Prompt Library states
+  const [prompts, setPrompts] = useState<Prompt[]>([])
+  const [promptStats, setPromptStats] = useState<PromptStats | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null)
+  const [showPromptDetails, setShowPromptDetails] = useState(false)
+
   useEffect(() => {
     // Check admin or super_admin permission
     if (currentUser && !currentUser.roles.includes('admin') && !currentUser.roles.includes('super_admin')) {
@@ -190,6 +230,12 @@ export default function AdminPage() {
       loadData()
     }
   }, [currentUser])
+
+  useEffect(() => {
+    if (currentUser?.roles.includes('super_admin') && activeTab === 4) {
+      loadPromptsData()
+    }
+  }, [selectedCategory, activeTab, currentUser])
 
   const loadData = async () => {
     try {
@@ -219,6 +265,21 @@ export default function AdminPage() {
       showSnackbar(error.response?.data?.detail || 'Failed to load admin data', 'error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadPromptsData = async () => {
+    try {
+      const category = selectedCategory === 'all' ? undefined : selectedCategory
+      const [promptsRes, statsRes] = await Promise.all([
+        promptsAPI.listPrompts(category ? { category } : undefined),
+        promptsAPI.getStats(),
+      ])
+      setPrompts(promptsRes.data.prompts)
+      setPromptStats(statsRes.data)
+    } catch (error: any) {
+      console.error('Error loading prompts:', error)
+      showSnackbar(error.response?.data?.detail || 'Failed to load prompts', 'error')
     }
   }
 
@@ -549,6 +610,9 @@ export default function AdminPage() {
             <Tab label="Roles & Permissions" />
             <Tab label="System Statistics" />
             <Tab label="LLM Configuration" />
+            {currentUser?.roles.includes('super_admin') && (
+              <Tab label="Prompt Library" />
+            )}
           </Tabs>
         </Paper>
 
@@ -1327,7 +1391,365 @@ export default function AdminPage() {
               </Grid>
             </Grid>
           )}
+
+          {/* Prompt Library Tab (Super Admin Only) */}
+          {activeTab === 4 && currentUser?.roles.includes('super_admin') && (
+            <Box>
+              {/* Stats Cards */}
+              <Grid container spacing={3} sx={{ mb: 4 }}>
+                <Grid item xs={12} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Typography color="text.secondary" variant="body2" gutterBottom>
+                        Total Prompts
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CodeIcon sx={{ color: 'primary.main', fontSize: 32 }} />
+                        <Typography variant="h3" fontWeight="bold">
+                          {promptStats?.total_prompts || 0}
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Typography color="text.secondary" variant="body2" gutterBottom>
+                        Built-in Prompts
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <DescriptionIcon sx={{ color: 'success.main', fontSize: 32 }} />
+                        <Typography variant="h3" fontWeight="bold">
+                          {promptStats?.built_in_prompts || 0}
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Typography color="text.secondary" variant="body2" gutterBottom>
+                        Custom Prompts
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <EditIcon sx={{ color: 'warning.main', fontSize: 32 }} />
+                        <Typography variant="h3" fontWeight="bold">
+                          {promptStats?.custom_prompts || 0}
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              {/* Category Filter and Prompts List */}
+              <Paper>
+                <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold">Prompt Library</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Browse and manage all system prompts
+                      </Typography>
+                    </Box>
+                    <FormControl sx={{ minWidth: 200 }}>
+                      <InputLabel>Category</InputLabel>
+                      <Select
+                        value={selectedCategory}
+                        label="Category"
+                        onChange={(e) => setSelectedCategory(e.target.value)}
+                      >
+                        <MenuItem value="all">All Categories</MenuItem>
+                        {promptStats && Object.keys(promptStats.by_category).sort().map((cat) => (
+                          <MenuItem key={cat} value={cat}>
+                            {cat} ({promptStats.by_category[cat]})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Box>
+
+                  {/* Category Stats */}
+                  {promptStats && (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                      {Object.entries(promptStats.by_category).sort().map(([cat, count]) => (
+                        <Chip
+                          key={cat}
+                          label={`${cat}: ${count}`}
+                          variant={selectedCategory === cat ? 'filled' : 'outlined'}
+                          color={selectedCategory === cat ? 'primary' : 'default'}
+                          onClick={() => setSelectedCategory(cat)}
+                          sx={{ cursor: 'pointer' }}
+                        />
+                      ))}
+                      {selectedCategory !== 'all' && (
+                        <Chip
+                          label="Clear Filter"
+                          variant="outlined"
+                          color="default"
+                          onDelete={() => setSelectedCategory('all')}
+                          onClick={() => setSelectedCategory('all')}
+                        />
+                      )}
+                    </Box>
+                  )}
+                </Box>
+
+                {/* Prompts Grid */}
+                <Box sx={{ p: 3 }}>
+                  <Grid container spacing={2}>
+                    {prompts.map((prompt) => (
+                      <Grid item xs={12} md={6} lg={4} key={prompt.name}>
+                        <Card
+                          sx={{
+                            height: '100%',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              boxShadow: 4,
+                              transform: 'translateY(-2px)',
+                            },
+                          }}
+                          onClick={() => {
+                            setSelectedPrompt(prompt)
+                            setShowPromptDetails(true)
+                          }}
+                        >
+                          <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                              <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: 'monospace', fontSize: '0.9rem' }}>
+                                {prompt.name}
+                              </Typography>
+                              {prompt.is_custom && (
+                                <Chip label="Custom" size="small" color="warning" />
+                              )}
+                            </Box>
+                            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                              <Chip
+                                label={prompt.category}
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                                icon={<CategoryIcon />}
+                              />
+                              <Chip
+                                label={`v${prompt.version}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, minHeight: 40 }}>
+                              {prompt.description}
+                            </Typography>
+                            <Divider sx={{ my: 1 }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography variant="caption" color="text.secondary">
+                                {prompt.variables.length} variables
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+
+                  {prompts.length === 0 && (
+                    <Box sx={{ textAlign: 'center', py: 8 }}>
+                      <CodeIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+                      <Typography variant="h6" color="text.secondary">
+                        No prompts found in this category
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Paper>
+
+              {/* Most Used Prompts */}
+              {promptStats && promptStats.most_used.length > 0 && (
+                <Paper sx={{ mt: 4, p: 3 }}>
+                  <Typography variant="h6" fontWeight="bold" gutterBottom>
+                    Most Used Prompts
+                  </Typography>
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Rank</TableCell>
+                          <TableCell>Prompt Name</TableCell>
+                          <TableCell>Category</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {promptStats.most_used.map((prompt, index) => (
+                          <TableRow key={prompt.name} hover>
+                            <TableCell>
+                              <Chip
+                                label={`#${index + 1}`}
+                                size="small"
+                                color={index === 0 ? 'success' : index === 1 ? 'info' : 'default'}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Typography fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                                {prompt.name}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip label={prompt.category} size="small" color="primary" variant="outlined" />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Paper>
+              )}
+            </Box>
+          )}
       </Container>
+
+      {/* Prompt Details Dialog */}
+      <Dialog
+        open={showPromptDetails}
+        onClose={() => setShowPromptDetails(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        {selectedPrompt && (
+          <>
+            <DialogTitle>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                    {selectedPrompt.name}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                    <Chip label={selectedPrompt.category} size="small" color="primary" />
+                    <Chip label={`v${selectedPrompt.version}`} size="small" />
+                    {selectedPrompt.is_custom && (
+                      <Chip label="Custom" size="small" color="warning" />
+                    )}
+                  </Box>
+                </Box>
+              </Box>
+            </DialogTitle>
+            <DialogContent>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {/* Description */}
+                <Box>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Description
+                  </Typography>
+                  <Typography variant="body2">{selectedPrompt.description}</Typography>
+                </Box>
+
+                {/* Purpose */}
+                {selectedPrompt.purpose && (
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                      Purpose
+                    </Typography>
+                    <Typography variant="body2">{selectedPrompt.purpose}</Typography>
+                  </Box>
+                )}
+
+                {/* Variables */}
+                <Box>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Variables ({selectedPrompt.variables.length})
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {selectedPrompt.variables.map((variable) => (
+                      <Chip
+                        key={variable}
+                        label={`{${variable}}`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontFamily: 'monospace' }}
+                      />
+                    ))}
+                    {selectedPrompt.variables.length === 0 && (
+                      <Typography variant="body2" color="text.secondary">
+                        No variables required
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+
+                {/* Template */}
+                <Box>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Template
+                  </Typography>
+                  <Paper
+                    sx={{
+                      p: 2,
+                      bgcolor: 'grey.900',
+                      color: 'grey.100',
+                      fontFamily: 'monospace',
+                      fontSize: '0.85rem',
+                      maxHeight: 400,
+                      overflow: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {selectedPrompt.template}
+                  </Paper>
+                </Box>
+
+                {/* Output Format */}
+                <Box>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Output Format
+                  </Typography>
+                  <Chip label={selectedPrompt.output_format} size="small" variant="outlined" />
+                </Box>
+
+                {/* Examples */}
+                {selectedPrompt.examples && selectedPrompt.examples.length > 0 && (
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                      Examples
+                    </Typography>
+                    {selectedPrompt.examples.map((example, index) => (
+                      <Paper key={index} sx={{ p: 2, mb: 1, bgcolor: 'action.hover' }}>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                          {example}
+                        </Typography>
+                      </Paper>
+                    ))}
+                  </Box>
+                )}
+
+                {/* Metadata */}
+                <Box>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
+                    Metadata
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">Created:</Typography>
+                      <Typography variant="body2">{formatDate(selectedPrompt.created_at)}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">Type:</Typography>
+                      <Typography variant="body2">
+                        {selectedPrompt.is_custom ? 'Custom (Runtime)' : 'Built-in'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setShowPromptDetails(false)}>Close</Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
 
       {/* Password Reset Dialog */}
       <Dialog

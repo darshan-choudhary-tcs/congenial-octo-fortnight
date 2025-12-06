@@ -7,7 +7,7 @@ This module provides CRUD operations for prompts:
 - Test prompts with variable substitution
 - Usage statistics and metadata
 
-All endpoints require admin role for security.
+All endpoints require super_admin role for security.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -279,13 +279,13 @@ def _convert_metadata_to_response(name: str, metadata: Any) -> PromptResponse:
 @router.get("", response_model=PromptListResponse)
 async def list_prompts(
     category: Optional[str] = Query(None, description="Filter by category (agent, rag, llm_service, vision, chat, system)"),
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role("super_admin"))
 ):
     """
     List all prompts with optional category filter.
 
     Returns all 30 built-in prompts plus any custom runtime prompts.
-    Requires admin role.
+    Requires super_admin role.
     """
     prompt_lib = get_prompt_library()
 
@@ -312,12 +312,12 @@ async def list_prompts(
 
 @router.get("/categories", response_model=CategoryResponse)
 async def get_categories(
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role("super_admin"))
 ):
     """
     Get all available prompt categories with counts.
 
-    Requires admin role.
+    Requires super_admin role.
     """
     prompt_lib = get_prompt_library()
     all_prompts = prompt_lib.list_prompts()
@@ -337,12 +337,12 @@ async def get_categories(
 
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role("super_admin"))
 ):
     """
     Get usage statistics for all prompts.
 
-    Requires admin role.
+    Requires super_admin role.
     """
     prompt_lib = get_prompt_library()
     usage_stats = prompt_lib.get_usage_stats()
@@ -370,11 +370,14 @@ async def get_stats(
     for metadata in all_prompts.values():
         by_category[metadata.category] = by_category.get(metadata.category, 0) + 1
 
+    # Calculate total usage from all prompts
+    total_usage = sum(metadata.usage_count for metadata in all_prompts.values())
+
     return StatsResponse(
         total_prompts=usage_stats["total_prompts"],
         custom_prompts=custom_count,
         built_in_prompts=built_in_count,
-        total_usage=usage_stats["total_usage"],
+        total_usage=total_usage,
         most_used=most_used,
         by_category=by_category
     )
@@ -383,12 +386,12 @@ async def get_stats(
 @router.get("/{name}", response_model=PromptResponse)
 async def get_prompt(
     name: str,
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role("super_admin"))
 ):
     """
     Get detailed information about a specific prompt.
 
-    Requires admin role.
+    Requires super_admin role.
     """
     prompt_lib = get_prompt_library()
 
@@ -412,7 +415,7 @@ async def get_prompt(
 @router.post("", response_model=PromptResponse, status_code=status.HTTP_201_CREATED)
 async def create_prompt(
     prompt_data: PromptCreate,
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role("super_admin"))
 ):
     """
     Register a new custom prompt at runtime.
@@ -420,7 +423,7 @@ async def create_prompt(
     Note: Custom prompts are stored in-memory only and will be lost on restart.
     Built-in prompt names cannot be overridden unless override=True.
 
-    Requires admin role.
+    Requires super_admin role.
     """
     prompt_lib = get_prompt_library()
 
@@ -484,7 +487,7 @@ async def create_prompt(
 async def update_prompt(
     name: str,
     prompt_update: PromptUpdate,
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role("super_admin"))
 ):
     """
     Update an existing custom prompt.
@@ -492,7 +495,7 @@ async def update_prompt(
     Built-in prompts (from templates.py) cannot be updated.
     Only custom runtime prompts can be modified.
 
-    Requires admin role.
+    Requires super_admin role.
     """
     prompt_lib = get_prompt_library()
 
@@ -563,7 +566,7 @@ async def update_prompt(
 @router.delete("/{name}", response_model=MessageResponse)
 async def delete_prompt(
     name: str,
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role("super_admin"))
 ):
     """
     Delete a custom prompt.
@@ -571,7 +574,7 @@ async def delete_prompt(
     Built-in prompts (from templates.py) cannot be deleted.
     Only custom runtime prompts can be removed.
 
-    Requires admin role.
+    Requires super_admin role.
     """
     prompt_lib = get_prompt_library()
 
@@ -610,7 +613,7 @@ async def delete_prompt(
 
 @router.delete("", response_model=MessageResponse)
 async def clear_custom_prompts(
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role("super_admin"))
 ):
     """
     Clear all custom prompts, keeping only built-in prompts.
@@ -618,7 +621,7 @@ async def clear_custom_prompts(
     This removes all runtime-registered prompts while preserving
     the 30 built-in prompts from templates.py.
 
-    Requires admin role.
+    Requires super_admin role.
     """
     prompt_lib = get_prompt_library()
 
@@ -648,7 +651,7 @@ async def clear_custom_prompts(
 async def test_prompt(
     name: str,
     test_request: PromptTestRequest,
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role("super_admin"))
 ):
     """
     Test a prompt with variable substitution.
@@ -656,7 +659,7 @@ async def test_prompt(
     This endpoint allows testing how a prompt will look after
     variable substitution without actually using it.
 
-    Requires admin role.
+    Requires super_admin role.
     """
     prompt_lib = get_prompt_library()
 
