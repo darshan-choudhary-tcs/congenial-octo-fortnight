@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context'
 import { reportsAPI, authAPI } from '@/lib/api'
 import { useSnackbar } from '@/components/SnackbarProvider'
 import ReportConfigPanel from '@/components/ReportConfigPanel'
+import TextualReportEditor from '@/components/TextualReportEditor'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -587,21 +588,6 @@ export default function ReportsPage() {
               >
                 <SettingsIcon />
               </IconButton>
-              <Menu
-                anchorEl={settingsAnchor}
-                open={Boolean(settingsAnchor)}
-                onClose={() => setSettingsAnchor(null)}
-              >
-                <MenuItem
-                  onClick={() => {
-                    setSettingsAnchor(null)
-                    setShowPasswordDialog(true)
-                  }}
-                >
-                  <KeyIcon sx={{ mr: 1, fontSize: 20 }} />
-                  Change Password
-                </MenuItem>
-              </Menu>
               <Button
                 variant="outlined"
                 size="small"
@@ -703,24 +689,6 @@ export default function ReportsPage() {
                     startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
                   >
                     {savedReportId ? 'Saved' : saving ? 'Saving...' : 'Save Report'}
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    color="secondary"
-                    onClick={handleExportPDF}
-                    disabled={exporting || !savedReportId}
-                    startIcon={exporting ? <CircularProgress size={20} /> : <DownloadIcon />}
-                  >
-                    {exporting ? 'Exporting...' : 'Export PDF'}
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    color="success"
-                    onClick={handleExportClientsidePDF}
-                    disabled={exportingClientside}
-                    startIcon={exportingClientside ? <CircularProgress size={20} /> : <DownloadIcon />}
-                  >
-                    {exportingClientside ? 'Exporting...' : 'Export (clientside)'}
                   </Button>
                 </Stack>
               </Box>
@@ -1190,6 +1158,14 @@ export default function ReportsPage() {
                 ))}
               </List>
             </Paper>
+
+            {/* Textual Report Version - Only shown if report is saved */}
+            {savedReportId && (
+              <TextualReportEditor
+                reportId={savedReportId}
+                reportName={report.report_name || `Energy Report`}
+              />
+            )}
           </>
         )}
       </Container>

@@ -232,6 +232,25 @@ export const reportsAPI = {
   deleteSavedReport: (reportId: number) =>
     api.delete(`/reports/saved/${reportId}`),
 
+  // Textual version endpoints (HITL)
+  generateTextualVersion: (reportId: number) =>
+    api.post(`/reports/saved/${reportId}/generate-textual-version`),
+
+  updateTextualVersion: (reportId: number, text: string) =>
+    api.put(`/reports/saved/${reportId}/textual-version`, { text }),
+
+  downloadTextualVersion: (reportId: number) => {
+    const token = localStorage.getItem('token')
+    return fetch(
+      `${API_URL}/api/v1/reports/saved/${reportId}/download-text`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      }
+    )
+  },
+
   // Client-side PDF generation - no backend call needed
   exportReportPDF: null as any, // Will be handled by client-side PDF generation
 }

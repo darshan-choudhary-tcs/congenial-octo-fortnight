@@ -443,21 +443,6 @@ export default function AdminPage() {
               >
                 <SettingsIcon />
               </IconButton>
-              <Menu
-                anchorEl={settingsAnchor}
-                open={Boolean(settingsAnchor)}
-                onClose={() => setSettingsAnchor(null)}
-              >
-                <MenuItem
-                  onClick={() => {
-                    setSettingsAnchor(null)
-                    setShowPasswordDialog(true)
-                  }}
-                >
-                  <KeyIcon sx={{ mr: 1, fontSize: 20 }} />
-                  Change Password
-                </MenuItem>
-              </Menu>
               <Button
                 variant="outlined"
                 size="small"

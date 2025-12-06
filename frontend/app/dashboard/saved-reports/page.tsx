@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { reportsAPI, authAPI } from '@/lib/api'
 import { useSnackbar } from '@/components/SnackbarProvider'
+import TextualReportEditor from '@/components/TextualReportEditor'
 import { useRouter } from 'next/navigation'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import {
@@ -231,21 +232,6 @@ export default function SavedReportsPage() {
               >
                 <SettingsIcon />
               </IconButton>
-              <Menu
-                anchorEl={settingsAnchor}
-                open={Boolean(settingsAnchor)}
-                onClose={() => setSettingsAnchor(null)}
-              >
-                <MenuItem
-                  onClick={() => {
-                    setSettingsAnchor(null)
-                    setShowPasswordDialog(true)
-                  }}
-                >
-                  <KeyIcon sx={{ mr: 1, fontSize: 20 }} />
-                  Change Password
-                </MenuItem>
-              </Menu>
               <Button
                 variant="outlined"
                 size="small"
@@ -563,6 +549,21 @@ export default function SavedReportsPage() {
                   )}
                 </Grid>
               </Grid>
+
+              {/* Textual Report Version */}
+              {selectedReport && (
+                <Box sx={{ mt: 3 }}>
+                  <TextualReportEditor
+                    reportId={selectedReport.id}
+                    reportName={selectedReport.report_name || `Report #${selectedReport.id}`}
+                    existingTextualVersion={selectedReport.textual_version}
+                    onUpdate={() => {
+                      // Reload the report details to get updated textual version
+                      handleViewReport(selectedReport.id)
+                    }}
+                  />
+                </Box>
+              )}
             </Box>
           ) : null}
         </DialogContent>

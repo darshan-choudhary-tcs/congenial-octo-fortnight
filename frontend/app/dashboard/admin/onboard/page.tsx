@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context'
 import { adminAPI } from '@/lib/api'
 import { useSnackbar } from '@/components/SnackbarProvider'
 import { useRouter } from 'next/navigation'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import {
   Box,
   Container,
@@ -23,14 +24,21 @@ import {
   DialogContent,
   DialogActions,
   InputAdornment,
+  Menu,
+  MenuItem
 } from '@mui/material'
 import {
+  Assessment as AssessmentIcon,
   PersonAdd as PersonAddIcon,
   ArrowBack as ArrowBackIcon,
   ContentCopy as CopyIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
+  Settings as SettingsIcon,
+  Key as KeyIcon,
+  Logout as LogOutIcon,
 } from '@mui/icons-material'
+
 
 interface OnboardedAdmin {
   id: number
@@ -44,9 +52,12 @@ interface OnboardedAdmin {
 }
 
 export default function OnboardAdminPage() {
-  const { user, hasRole } = useAuth()
+  const { user, hasRole, logout } = useAuth()
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
+
+  const [settingsAnchor, setSettingsAnchor] = useState<null | HTMLElement>(null)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
 
   const [formData, setFormData] = useState({
     email: '',
@@ -154,196 +165,240 @@ export default function OnboardAdminPage() {
   }
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Button
-        startIcon={<ArrowBackIcon />}
-        onClick={() => router.push('/dashboard/admin')}
-        sx={{ mb: 3 }}
-      >
-        Back to Admin Panel
-      </Button>
-
-      <Paper elevation={3} sx={{ p: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <PersonAddIcon sx={{ fontSize: 40, mr: 2, color: 'primary.main' }} />
-          <Box>
-            <Typography variant="h4" gutterBottom>
-              Onboard Admin User
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Create a new admin user with auto-generated secure credentials
-            </Typography>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+      {/* Header */}
+      <Paper sx={{ borderRadius: 0, borderBottom: 1, borderColor: 'divider' }} elevation={1}>
+        <Container maxWidth="xl">
+          <Box sx={{ py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton
+                onClick={() => router.push('/dashboard')}
+                size="small"
+                sx={{ mr: 1 }}
+              >
+                <ArrowBackIcon />
+              </IconButton>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AssessmentIcon color="primary" />
+                <Typography variant="h5" fontWeight="bold">
+                  Onboard Company Admin
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {user?.full_name || user?.username}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                  {user?.roles.join(', ')}
+                </Typography>
+              </Box>
+              <ThemeToggle />
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LogOutIcon />}
+                onClick={logout}
+              >
+                Logout
+              </Button>
+            </Box>
           </Box>
-        </Box>
-
-        <Alert severity="info" sx={{ mb: 3 }}>
-          <AlertTitle>Super Admin Action</AlertTitle>
-          This form will create a new admin user with an auto-generated secure password.
-          Make sure to save the credentials securely after submission.
-        </Alert>
-
-        <Box component="form" onSubmit={handleSubmit}>
-          <TextField
-            fullWidth
-            label="Email Address"
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            error={!!errors.email}
-            helperText={errors.email || 'Admin user\'s email address'}
-            margin="normal"
-            required
-            disabled={loading}
-          />
-
-          <TextField
-            fullWidth
-            label="Full Name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            error={!!errors.name}
-            helperText={errors.name || 'Admin user\'s full name'}
-            margin="normal"
-            required
-            disabled={loading}
-          />
-
-          <TextField
-            fullWidth
-            label="Company / Organization"
-            value={formData.company}
-            onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-            error={!!errors.company}
-            helperText={errors.company || 'Company or organization name'}
-            margin="normal"
-            required
-            disabled={loading}
-          />
-
-          <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
-            <Button
-              type="submit"
-              variant="contained"
-              size="large"
-              fullWidth
-              disabled={loading}
-              startIcon={loading ? <CircularProgress size={20} /> : <PersonAddIcon />}
-            >
-              {loading ? 'Creating Admin...' : 'Create Admin User'}
-            </Button>
-          </Box>
-        </Box>
+        </Container>
       </Paper>
 
-      {/* Success Dialog */}
-      <Dialog
-        open={showDialog}
-        onClose={handleCloseDialog}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'success.main', color: 'white' }}>
-          ✅ Admin User Created Successfully!
-        </DialogTitle>
-        <DialogContent sx={{ mt: 2 }}>
-          {onboardedAdmin && (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => router.push('/dashboard/admin')}
+          sx={{ mb: 3 }}
+        >
+          Back to Admin Panel
+        </Button>
+
+        <Paper elevation={3} sx={{ p: 4 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+            <PersonAddIcon sx={{ fontSize: 40, mr: 2, color: 'primary.main' }} />
             <Box>
-              <Alert severity="warning" sx={{ mb: 3 }}>
-                <AlertTitle>Important: Save These Credentials</AlertTitle>
-                The password is only shown once. Make sure to save it securely.
-              </Alert>
-
-              <Card sx={{ mb: 2, bgcolor: 'grey.50' }}>
-                <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Username
-                  </Typography>
-                  <Typography variant="h6" sx={{ mb: 2 }}>
-                    {onboardedAdmin.username}
-                  </Typography>
-
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Email
-                  </Typography>
-                  <Typography variant="h6" sx={{ mb: 2 }}>
-                    {onboardedAdmin.email}
-                  </Typography>
-
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Full Name
-                  </Typography>
-                  <Typography variant="h6" sx={{ mb: 2 }}>
-                    {onboardedAdmin.name}
-                  </Typography>
-
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Company
-                  </Typography>
-                  <Typography variant="h6" sx={{ mb: 2 }}>
-                    {onboardedAdmin.company}
-                  </Typography>
-
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Auto-Generated Password
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    value={onboardedAdmin.password}
-                    type={showPassword ? 'text' : 'password'}
-                    InputProps={{
-                      readOnly: true,
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={() => setShowPassword(!showPassword)}
-                            edge="end"
-                          >
-                            {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                          </IconButton>
-                          <IconButton onClick={handleCopyPassword} edge="end">
-                            <CopyIcon />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                    sx={{
-                      mb: 2,
-                      '& .MuiInputBase-input': {
-                        fontFamily: 'monospace',
-                        fontSize: '1.1rem',
-                        fontWeight: 'bold',
-                      }
-                    }}
-                  />
-
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Role
-                  </Typography>
-                  <Typography variant="body1" sx={{ color: 'success.main', fontWeight: 'bold' }}>
-                    {onboardedAdmin.roles.join(', ')}
-                  </Typography>
-                </CardContent>
-              </Card>
-
-              <Alert severity="info">
-                The admin user can now login with these credentials and access the admin panel.
-              </Alert>
+              <Typography variant="h4" gutterBottom>
+                Onboard Admin User
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Create a new admin user with auto-generated secure credentials
+              </Typography>
             </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button
-            onClick={handleCopyCredentials}
-            startIcon={<CopyIcon />}
-            variant="outlined"
-          >
-            Copy All Credentials
-          </Button>
-          <Button onClick={handleCloseDialog} variant="contained">
-            Done
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+          </Box>
+
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <AlertTitle>Super Admin Action</AlertTitle>
+            This form will create a new admin user with an auto-generated secure password.
+            Make sure to save the credentials securely after submission.
+          </Alert>
+
+          <Box component="form" onSubmit={handleSubmit}>
+            <TextField
+              fullWidth
+              label="Email Address"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              error={!!errors.email}
+              helperText={errors.email || 'Admin user\'s email address'}
+              margin="normal"
+              required
+              disabled={loading}
+            />
+
+            <TextField
+              fullWidth
+              label="Full Name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              error={!!errors.name}
+              helperText={errors.name || 'Admin user\'s full name'}
+              margin="normal"
+              required
+              disabled={loading}
+            />
+
+            <TextField
+              fullWidth
+              label="Company / Organization"
+              value={formData.company}
+              onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+              error={!!errors.company}
+              helperText={errors.company || 'Company or organization name'}
+              margin="normal"
+              required
+              disabled={loading}
+            />
+
+            <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                fullWidth
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : <PersonAddIcon />}
+              >
+                {loading ? 'Creating Admin...' : 'Create Admin User'}
+              </Button>
+            </Box>
+          </Box>
+        </Paper>
+
+        {/* Success Dialog */}
+        <Dialog
+          open={showDialog}
+          onClose={handleCloseDialog}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ bgcolor: 'success.main', color: 'white' }}>
+            ✅ Admin User Created Successfully!
+          </DialogTitle>
+          <DialogContent sx={{ mt: 2 }}>
+            {onboardedAdmin && (
+              <Box>
+                <Alert severity="warning" sx={{ mb: 3 }}>
+                  <AlertTitle>Important: Save These Credentials</AlertTitle>
+                  The password is only shown once. Make sure to save it securely.
+                </Alert>
+
+                <Card sx={{ mb: 2, bgcolor: 'grey.50' }}>
+                  <CardContent>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Username
+                    </Typography>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      {onboardedAdmin.username}
+                    </Typography>
+
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Email
+                    </Typography>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      {onboardedAdmin.email}
+                    </Typography>
+
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Full Name
+                    </Typography>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      {onboardedAdmin.name}
+                    </Typography>
+
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Company
+                    </Typography>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      {onboardedAdmin.company}
+                    </Typography>
+
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Auto-Generated Password
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      value={onboardedAdmin.password}
+                      type={showPassword ? 'text' : 'password'}
+                      InputProps={{
+                        readOnly: true,
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={() => setShowPassword(!showPassword)}
+                              edge="end"
+                            >
+                              {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                            </IconButton>
+                            <IconButton onClick={handleCopyPassword} edge="end">
+                              <CopyIcon />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{
+                        mb: 2,
+                        '& .MuiInputBase-input': {
+                          fontFamily: 'monospace',
+                          fontSize: '1.1rem',
+                          fontWeight: 'bold',
+                        }
+                      }}
+                    />
+
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Role
+                    </Typography>
+                    <Typography variant="body1" sx={{ color: 'success.main', fontWeight: 'bold' }}>
+                      {onboardedAdmin.roles.join(', ')}
+                    </Typography>
+                  </CardContent>
+                </Card>
+
+                <Alert severity="info">
+                  The admin user can now login with these credentials and access the admin panel.
+                </Alert>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2, gap: 1 }}>
+            <Button
+              onClick={handleCopyCredentials}
+              startIcon={<CopyIcon />}
+              variant="outlined"
+            >
+              Copy All Credentials
+            </Button>
+            <Button onClick={handleCloseDialog} variant="contained">
+              Done
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Container>
+    </Box>
   )
 }
